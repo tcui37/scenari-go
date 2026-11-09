@@ -47,3 +47,16 @@ In development, Vite forwards `/api` and `/ws` to the backend (see `frontend/vit
 | ------------ | --------- | ---------------------------------------- |
 | `/api/hello` | GET       | Test REST call, shown on the Home page   |
 | `/ws`        | WebSocket | Echo test, used on the Game page         |
+
+## Voice (Guava)
+
+Browser voice calls to a Guava AI agent over WebRTC ([docs](https://docs.goguava.ai/guides/webrtc-calls)).
+The browser connects straight to Guava. `backend/agent.py` is a separate process that steers the call.
+
+1. Create a WebRTC code: `guava webrtc create-code` (run `guava login` first if needed).
+2. Put it in `backend/.env` as `GUAVA_WEBRTC_CODE=grtc-...` (next to `GUAVA_API_KEY`),
+   and in `frontend/.env.local` as `VITE_GUAVA_WEBRTC_CODE=grtc-...`.
+3. Run the agent: `cd backend && python agent.py`
+4. Run the frontend, open http://localhost:5173/voice, and click **Start call**.
+
+The API key stays in `backend/.env` and never goes to the browser.
