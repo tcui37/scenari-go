@@ -1,19 +1,362 @@
-:root {
-  font-family: system-ui, sans-serif;
-  color-scheme: light dark;
+/* Base styles and reusable component classes. Colors, fonts and sizes come from tokens.css. */
+@import './styles/tokens.css';
+
+/* ===== Base ===== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
-  margin: 0 auto;
-  max-width: 720px;
-  padding: 16px;
+  margin: 0;
+  font-family: var(--font-family);
+  font-weight: var(--font-weight-regular);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height);
+  color: var(--color-text);
+  background: var(--color-bg);
 }
 
-nav {
+h1,
+h2,
+h3 {
+  margin: 0 0 var(--space-3);
+  font-weight: var(--font-weight-heavy);
+}
+
+h1 { font-size: var(--font-size-xl); }
+h2 { font-size: var(--font-size-lg); }
+
+p { margin: 0 0 var(--space-3); }
+
+:focus-visible {
+  outline: var(--border-width) solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* ===== Layout ===== */
+
+.app-header {
   display: flex;
-  gap: 16px;
+  align-items: center;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: var(--border-width) solid var(--color-border);
 }
 
-nav a.active {
-  font-weight: bold;
+.wordmark {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-heavy);
+  color: var(--color-primary);
+  text-decoration: none;
 }
+
+.page {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.row > h2 { margin: 0; }
+.grow { flex: 1; }
+.align-start { align-self: flex-start; }
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* ===== Buttons (chunky bottom border that collapses on press) ===== */
+
+.btn {
+  --btn-bg: var(--color-bg);
+  --btn-fg: var(--color-accent);
+  --btn-edge: var(--color-border);
+
+  padding: var(--space-3) var(--space-5);
+  font: inherit;
+  font-weight: var(--font-weight-heavy);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--btn-fg);
+  background: var(--btn-bg);
+  border: var(--border-width) solid var(--btn-edge);
+  border-bottom-width: var(--shadow-depth);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.btn:active:not(:disabled) {
+  border-bottom-width: var(--border-width);
+  transform: translateY(calc(var(--shadow-depth) - var(--border-width)));
+}
+
+.btn:disabled {
+  --btn-bg: var(--color-border);
+  --btn-fg: var(--color-text-disabled);
+  --btn-edge: var(--color-border);
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  --btn-bg: var(--color-primary);
+  --btn-fg: var(--color-text-on-color);
+  --btn-edge: var(--color-primary-shadow);
+}
+
+.btn-accent {
+  --btn-bg: var(--color-accent);
+  --btn-fg: var(--color-text-on-color);
+  --btn-edge: var(--color-accent-shadow);
+}
+
+.btn-danger {
+  --btn-bg: var(--color-danger);
+  --btn-fg: var(--color-text-on-color);
+  --btn-edge: var(--color-danger-shadow);
+}
+
+.btn-large {
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--font-size-lg);
+}
+
+/* Small text-style button, e.g. "+ Add objective" or "Remove" */
+.btn-link {
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-weight: var(--font-weight-heavy);
+  color: var(--color-accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-link.danger { color: var(--color-danger); }
+
+/* ===== Cards ===== */
+
+.card {
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--color-border);
+  border-bottom-width: var(--shadow-depth);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+}
+
+/* ===== Form fields ===== */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.field-label {
+  font-weight: var(--font-weight-heavy);
+}
+
+.field-hint {
+  align-self: flex-end;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.input {
+  width: 100%;
+  padding: var(--space-3);
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-bg-subtle);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-focus);
+}
+
+textarea.input { resize: vertical; }
+
+.input::placeholder {
+  color: var(--color-placeholder);
+  opacity: 1;
+}
+
+/* ===== Searchable select (react-select, unstyled + classNamePrefix="select") ===== */
+
+.select__control {
+  min-height: 48px;
+  padding: 0 var(--space-3);
+  background: var(--color-bg-subtle);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.select__control--is-focused { border-color: var(--color-focus); }
+.select__placeholder { color: var(--color-placeholder); }
+.select__indicator { color: var(--color-text-muted); }
+
+.select__menu {
+  margin-top: var(--space-1);
+  padding: var(--space-1);
+  background: var(--color-bg);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.select__menu-list {
+  max-height: var(--menu-max-height);
+  overflow-y: auto;
+}
+
+.select__option {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.select__option--is-focused { background: var(--color-accent-light); }
+.select__option--is-selected { color: var(--color-accent); }
+
+.select__menu-notice {
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-muted);
+}
+
+/* ===== Chip (e.g. chosen language level) ===== */
+
+.chip {
+  align-self: flex-start;
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-weight: var(--font-weight-heavy);
+  color: var(--color-accent);
+  background: var(--color-accent-light);
+  border: var(--border-width) solid var(--color-accent);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+/* ===== Dialog (native <dialog>) ===== */
+
+.dialog {
+  width: min(480px, calc(100% - var(--space-6)));
+  padding: var(--space-5);
+  color: var(--color-text);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+/* Inside the dialog the menu takes up space instead of floating, so it never runs off-screen. */
+.dialog .select__menu { position: static; }
+
+.dialog::backdrop {
+  background: color-mix(in srgb, var(--color-gray-900) 50%, transparent);
+}
+
+/* ===== Script editor ===== */
+
+.kind-toggle {
+  display: inline-flex;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.kind-toggle button {
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-heavy);
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  border: none;
+  cursor: pointer;
+}
+
+.kind-toggle button[aria-pressed='true'] {
+  color: var(--color-text-on-color);
+  background: var(--color-accent);
+}
+
+.checklist-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-md);
+}
+
+/* ===== Landing ===== */
+
+.hero {
+  text-align: center;
+  padding-top: var(--space-6);
+}
+
+.hero h1 {
+  font-size: var(--font-size-hero);
+  line-height: 1.15;
+}
+
+.hero p {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--space-6);
+}
+
+/* ===== Game ===== */
+
+.game-canvas {
+  display: flex;
+  justify-content: center;
+}
+
+.game-canvas canvas {
+  max-width: 100%;
+  border-radius: var(--radius-lg);
+}
+
+/* ===== Summary ===== */
+
+.score {
+  font-size: var(--font-size-hero);
+  font-weight: var(--font-weight-heavy);
+  color: var(--color-primary);
+}
+
+.result {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+}
+
+.result.met { background: var(--color-primary-light); }
+.result.not-met { background: var(--color-danger-light); }
+
+/* ===== Status messages ===== */
+
+.error { color: var(--color-danger); }
