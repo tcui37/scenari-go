@@ -15,7 +15,7 @@ export default function Play({ scenario }: Props) {
   const [inConversation, setInConversation] = useState(false)
 
   // Start a game on the server, then mirror its state over a WebSocket.
-  // The server owns the game; this page only sends inputs and draws what comes back.
+  // The server owns the game: this page only sends raw key presses and shows what comes back.
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -28,9 +28,11 @@ export default function Play({ scenario }: Props) {
         if (cancelled) return
         const ws = new WebSocket(`/ws/games/${game_id}`)
         socket = ws
-        view = createGame(container, state, (input) => {
-          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(input))
+
+        view = createGame(container, state, (key) => {
+          if (ws.readyState === WebSocket.OPEN) ws.send(key)
         })
+
         ws.onmessage = (event) => {
           const message = JSON.parse(event.data)
           if (message.type !== 'state') return
@@ -54,7 +56,7 @@ export default function Play({ scenario }: Props) {
       <h1>Play</h1>
       <p className="muted">
         {inConversation
-          ? `Talking to ${scenario.partner.name}. Press Enter to end the conversation.`
+          ? `Talking to ${scenario.partner.name}. Press Esc to end the conversation.`
           : `Use the arrow keys to move. Press Enter next to ${scenario.partner.name} to talk.`}
       </p>
       {error && <p className="error">{error}</p>}

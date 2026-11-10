@@ -4,12 +4,16 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from game.game import DIRECTIONS, Game
+from game.game import Game
 from llm.gemini import gemini_generate
 from llm.prompts import checklists_prompt, score_prompt
 from schemas import GeneratedChecklists, Scenario, ScoreRequest, ScoreResponse
 
 load_dotenv()  # loads GEMINI_API_KEY from backend/.env
+
+# --- Games: each game is isolated by its ID; it lives in memory while its socket is connected ---
+games: dict[str, Game] = {}
+
 
 app = FastAPI()
 
@@ -39,10 +43,6 @@ def score_scenario(req: ScoreRequest) -> ScoreResponse:
     return ask_gemini(score_prompt(req), ScoreResponse)
 
 
-# --- Game: each game is isolated by its ID; it lives in memory while its socket is connected ---
-games: dict[str, Game] = {}
-
-
 @app.post("/api/games")
 def create_game(scenario: Scenario) -> dict:
     game_id = uuid4().hex
@@ -50,9 +50,9 @@ def create_game(scenario: Scenario) -> dict:
     return {"game_id": game_id, "state": games[game_id].state()}
 
 
-# TODO: refine socket logic
 @app.websocket("/ws/games/{game_id}")
 async def play_game(websocket: WebSocket, game_id: str):
+    """The browser sends raw key names (e.g. "ArrowUp", "Enter"); the game decides what they do."""
     await websocket.accept()
     game = games.get(game_id)
     if game is None:
@@ -60,18 +60,11 @@ async def play_game(websocket: WebSocket, game_id: str):
         await websocket.close(code=4404, reason="Unknown game")
         return
 
-    await websocket.send_json({"type": "state", **game.state()})
     try:
+        await websocket.send_json({"type": "state", **game.state()})
         while True:
-            message = await websocket.receive_json()
-            match message.get("type"):
-                case "move" if message.get("direction") in DIRECTIONS:  # {"type": "move", "direction": "up"}
-                    game.move_player(message["direction"])
-                case "enter":  # {"type": "enter"}; the game decides what Enter does
-                    game.press_enter()
-                case _:
-                    await websocket.send_json({"type": "error", "message": "Unknown input."})
-                    continue
+            key = await websocket.receive_text()
+            game.handle_key(key)
             await websocket.send_json({"type": "state", **game.state()})
     except WebSocketDisconnect:
         pass  # the browser left: "Finish scenario", Back, closing the tab, or a dropped connection

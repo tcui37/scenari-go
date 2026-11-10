@@ -8,6 +8,9 @@ EMPTY = 0  # tile values; walls and items can be added later
 # (row change, column change) for each direction
 DIRECTIONS = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
 
+# Browser key names (KeyboardEvent.key) that move the player
+KEY_TO_DIRECTION = {"ArrowUp": "up", "ArrowDown": "down", "ArrowLeft": "left", "ArrowRight": "right"}
+
 
 class Position(NamedTuple):
     row: int
@@ -38,6 +41,15 @@ class Game:
             agent_position=Position(rows - 1, cols - 1),
         )
 
+    def handle_key(self, key: str) -> None:
+        """Interpret a raw key from the browser. Keys the game doesn't use are ignored."""
+        if key in KEY_TO_DIRECTION:
+            self.move_player(KEY_TO_DIRECTION[key])
+        elif key == "Enter":
+            self.press_enter()
+        elif key == "Escape":
+            self.end_conversation()
+
     def move_player(self, direction: str) -> None:
         dr, dc = DIRECTIONS[direction]  # KeyError for an unknown direction
         target = Position(self.player_position.row + dr, self.player_position.col + dc)
@@ -45,11 +57,13 @@ class Game:
             self.player_position = target  # disallowed moves are ignored
 
     def press_enter(self) -> None:
-        """Enter talks to the agent. The game owns the conversation state."""
-        if self.in_conversation:
-            self.in_conversation = False  # stand-in until the voice call ends conversations
-        elif self._next_to_agent():
+        """Enter starts a conversation with the agent. The game owns the conversation state."""
+        if not self.in_conversation and self._next_to_agent():
             self.in_conversation = True  # ignored when the agent is out of reach
+
+    def end_conversation(self) -> None:
+        """The student hung up (Esc) or the agent finished the conversation."""
+        self.in_conversation = False
 
     def _next_to_agent(self) -> bool:
         # Directly up, down, left or right of the agent (no diagonals).

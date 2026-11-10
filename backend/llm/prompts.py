@@ -15,7 +15,7 @@ def _describe(scenario: Scenario) -> str:
 
 def checklists_prompt(scenario: Scenario) -> str:
     return f"""You are designing a role-play for a language learner.
-The student talks to the conversation partner below, played by a voice AI agent.
+The student talks to the conversation partner below, played by an AI.
 
 {_describe(scenario)}
 

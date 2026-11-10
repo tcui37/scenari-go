@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 class ConversationPartner(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     bio: str = Field(max_length=100)
-    language: str  # e.g. "spanish"
+    language: Literal["english", "spanish"]  # the app's languages; also supported by Guava voice
     level: str  # e.g. "B1"
 
 

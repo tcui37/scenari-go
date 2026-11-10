@@ -1,19 +1,14 @@
 // Draws the grid game with PixiJS (https://pixijs.com/8.x/guides/getting-started/quick-start).
-// View only: the backend owns the game state. This draws whatever state it is given
-// and reports key presses through `onInput`.
+// View only: the backend owns the game state and decides what keys do. This draws
+// whatever state it is given and forwards every key press, unchanged, through `onKey`.
 import { Application, Assets, Graphics, Sprite } from 'pixi.js'
-import type { GameInput, GameState, Position } from './types.ts'
+import type { GameState, Position } from './types.ts'
 
 const TILE = 64 // px
 const PLAYER_TEXTURE = 'https://pixijs.com/assets/bunny.png' // sample sprite from the PixiJS docs
 
-const KEY_TO_INPUT: Record<string, GameInput> = {
-  ArrowUp: { type: 'move', direction: 'up' },
-  ArrowDown: { type: 'move', direction: 'down' },
-  ArrowLeft: { type: 'move', direction: 'left' },
-  ArrowRight: { type: 'move', direction: 'right' },
-  Enter: { type: 'enter' },
-}
+// Keys whose browser default (scrolling the page) would get in the way of playing.
+const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '])
 
 export type GameView = {
   render: (state: GameState) => void
@@ -43,7 +38,7 @@ function drawGrid(grid: number[][]): Graphics {
 export function createGame(
   container: HTMLElement,
   initial: GameState,
-  onInput: (input: GameInput) => void,
+  onKey: (key: string) => void,
 ): GameView {
   const app = new Application()
   let player: Sprite | null = null
@@ -65,10 +60,8 @@ export function createGame(
   }
 
   function onKeyDown(event: KeyboardEvent) {
-    const input = KEY_TO_INPUT[event.key]
-    if (!input) return
-    event.preventDefault() // stop arrow keys from scrolling the page
-    onInput(input)
+    if (SCROLL_KEYS.has(event.key)) event.preventDefault()
+    onKey(event.key) // raw KeyboardEvent.key, e.g. "ArrowUp", "Enter", "Escape"
   }
 
   // Pixi's init is async; wrap it in a function (top-level await breaks Vite builds).

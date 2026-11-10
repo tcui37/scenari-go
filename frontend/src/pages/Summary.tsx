@@ -19,7 +19,7 @@ export default function Summary({ scenario, onReset }: Props) {
     if (!hasChecklists(scenario)) return
     setError('')
     try {
-      // No conversation is recorded yet; the transcript will come from voice / the game engine.
+      // No conversation is recorded yet; the transcript will come from the game.
       setResult(await scoreScenario({ scenario, transcript: [] }))
     } catch (e) {
       setError((e as Error).message)
