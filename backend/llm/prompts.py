@@ -1,6 +1,6 @@
 """Prompt builders for Gemini. Response shapes come from schemas.py (sent as response_schema)."""
+from game.call_summary import TranscriptLine
 from game.scenario import Scenario
-from schemas import TranscriptLineModel
 
 
 def checklists_prompt(scenario: Scenario) -> str:
@@ -20,7 +20,7 @@ Each objective is one unit, even if it asks for several things (e.g. "order a dr
 gets a single checklist covering both). Never split an objective into multiple checklists."""
 
 
-def score_prompt(scenario: Scenario, transcript: list[TranscriptLineModel]) -> str:
+def score_prompt(scenario: Scenario, transcript: list[TranscriptLine]) -> str:
     lines = "\n".join(f"{line.speaker}: {line.text}" for line in transcript)
     return f"""You are grading a language learner's role-play conversation.
 

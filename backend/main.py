@@ -1,7 +1,5 @@
-import asyncio
 import os
 import threading
-from collections.abc import Callable
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
@@ -14,6 +12,7 @@ from game.scenario import Scenario
 from llm.gemini import gemini_generate_with_schema
 from llm.prompts import checklists_prompt, score_prompt
 from schemas import GameSummaryModel, GeneratedChecklistsModel, ScenarioModel, ScoreResponseModel, TranscriptLineModel
+from sockets.socket import create_socket_updater
 from voice.agent import create_agent
 
 load_dotenv()  # loads GEMINI_API_KEY, GUAVA_API_KEY and GUAVA_WEBRTC_CODE from backend/.env
@@ -29,10 +28,9 @@ games: dict[str, Game] = {}
 async def lifespan(app: FastAPI):
     """On startup, one voice agent starts answering calls for every game."""
     agent = create_agent(games.get)
-    # listen_webrtc blocks for as long as it listens, so it gets its own thread.
+    # setup listener on a separate thread, as listener blocks and handles incoming calls until the process exits
     threading.Thread(target=agent.listen_webrtc, args=(GUAVA_WEBRTC_CODE,), daemon=True).start()
     yield
-
 
 app = FastAPI(lifespan=lifespan)
 
@@ -50,6 +48,7 @@ async def ask_gemini(prompt: str, schema: type[BaseModel]) -> BaseModel:
 async def generate_checklists(scenario: ScenarioModel) -> ScenarioModel:
     """Returns the scenario with one generated checklist per objective."""
     result = await ask_gemini(checklists_prompt(Scenario.from_model(scenario)), GeneratedChecklistsModel)
+
     if len(result.checklists) != len(scenario.objectives):
         # Debug: show what Gemini returned in the `fastapi dev` terminal.
         print("Scenario sent:")
@@ -57,6 +56,7 @@ async def generate_checklists(scenario: ScenarioModel) -> ScenarioModel:
         print(f"Expected {len(scenario.objectives)} checklists, got {len(result.checklists)}:")
         print(result.model_dump_json(indent=2))
         raise HTTPException(502, "Gemini skipped an objective. Please try again.")
+    
     scenario.checklists = result.checklists
     return scenario
 
@@ -67,21 +67,9 @@ async def summarize_game(game_id: str) -> GameSummaryModel:
     game = games.get(game_id)
     if game is None:
         raise HTTPException(404, "This game has ended. Play again to get a summary.")
-    # Copy first: the voice agent may still be adding lines from its own thread.
-    transcript = [TranscriptLineModel(speaker=line.speaker, text=line.text) for line in list(game.transcript)]
+    transcript = game.call_summary.transcript
     score = await ask_gemini(score_prompt(game.scenario, transcript), ScoreResponseModel)
-    return GameSummaryModel(evaluation=score, transcript=transcript)
-
-
-def create_socket_updater(websocket: WebSocket, game: Game) -> Callable[[], None]:
-    """Returns a function that sends `game`'s state to its browser. Safe to call from any thread:
-    the voice agent calls it from its own, so the send is handed to the socket's event loop."""
-    loop = asyncio.get_running_loop()
-
-    def update_socket() -> None:
-        asyncio.run_coroutine_threadsafe(websocket.send_json({"type": "state", **game.state()}), loop)
-
-    return update_socket
+    return GameSummaryModel(evaluation=score, transcript=[TranscriptLineModel.from_line(line) for line in transcript])
 
 
 @app.websocket("/ws/game")
@@ -94,13 +82,14 @@ async def play_game(websocket: WebSocket):
         # No game exists until the scenario arrives, so a socket that closes early costs nothing.
         scenario = ScenarioModel.model_validate_json(await websocket.receive_text())
         game = games[game_id] = Game.from_scenario(Scenario.from_model(scenario))
-        game.set_socket_updater(create_socket_updater(websocket, game))
+        game.set_socket_emission_fn(create_socket_updater(websocket, game))
         # The browser places the voice call: it dials the agent's code and names this game.
         await websocket.send_json({"type": "game_created", "game_id": game_id, "webrtc_code": GUAVA_WEBRTC_CODE})
         game.update_socket()
         while True:
             game.handle_key(await websocket.receive_text())
             game.update_socket()
+
     except WebSocketDisconnect:
         pass  # the browser left: "Finish scenario", Back, closing the tab, or a dropped connection
     finally:

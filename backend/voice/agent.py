@@ -8,7 +8,8 @@ from collections.abc import Callable
 import guava
 from guava.events import AgentSpeechEvent, BotSessionEnded, CallerSpeechEvent
 
-from game.game import CallResult, Game
+from game.call_summary import CallResult
+from game.game import Game
 
 
 def create_agent(find_game: Callable[[str], Game | None]) -> guava.Agent:
@@ -41,12 +42,12 @@ def create_agent(find_game: Callable[[str], Game | None]) -> guava.Agent:
     @agent.on_caller_speech
     def on_caller_speech(call: guava.Call, event: CallerSpeechEvent) -> None:
         if game := game_for(call.call_info):
-            game.record_speech("student", event.utterance, event.utterance_id)
+            game.call_summary.record_speech("student", event.utterance, event.utterance_id)
 
     @agent.on_agent_speech
     def on_agent_speech(call: guava.Call, event: AgentSpeechEvent) -> None:
         if game := game_for(call.call_info):
-            game.record_speech("partner", event.utterance)
+            game.call_summary.record_speech("partner", event.utterance)
 
     @agent.on_session_end
     def on_session_end(call: guava.Call, event: BotSessionEnded) -> None:
@@ -57,7 +58,7 @@ def create_agent(find_game: Callable[[str], Game | None]) -> guava.Agent:
         if event.termination_reason == "user-hangup":
             # The player already ended it (Esc, Finish, or leaving the page). Only record it: by now
             # a newer conversation may have started, and that one must not be ended.
-            game.call_results.append(result)
+            game.call_summary.call_results.append(result)
         else:
             game.end_conversation(result)  # the agent or a failure ended it: hand control back
 

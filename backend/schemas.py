@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from game.call_summary import TranscriptLine
+
 
 # --- Scenario (what the teacher fills in) ---
 
@@ -40,6 +42,11 @@ class GeneratedChecklistsModel(BaseModel):
 class TranscriptLineModel(BaseModel):
     speaker: Literal["partner", "student"]
     text: str
+
+    @classmethod
+    def from_line(cls, line: TranscriptLine) -> "TranscriptLineModel":
+        """The API shape of one of the game's transcript lines (its utterance_id stays internal)."""
+        return cls(speaker=line.speaker, text=line.text)
 
 
 class ObjectiveScoreModel(BaseModel):

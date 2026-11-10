@@ -3,6 +3,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import NamedTuple
 
+from game.call_summary import CallResult, CallSummary
 from game.scenario import ChecklistItem, Scenario
 
 EMPTY = 0  # tile values; walls and items can be added later
@@ -26,23 +27,11 @@ class Objective:
     checklist: list[ChecklistItem]
 
 
-@dataclass
-class CallResult:
-    """How a conversation ended. The transcript will join this later."""
-    termination_reason: str  # "user-hangup" | "bot-hangup" | "bot-failure"
-
-
-@dataclass
-class TranscriptLine:
-    """One thing said during a call."""
-    speaker: str  # "student" | "partner"
-    text: str
-    utterance_id: str | None = None  # speech recognition re-sends a line as it refines it; same id = same line
-
-
 class Game:
     """The player drives the game with keys. During a conversation the game hands control to the
     agent, which drives it through current_objective / complete_objective / end_conversation."""
+
+    # --- Creating a game ---
 
     def __init__(
         self,
@@ -57,8 +46,7 @@ class Game:
         self.agent_position = agent_position  # the conversation partner
         self.in_conversation = False  # while True, nobody moves
         self.objective_index = 0  # the objective being worked on; len(objectives) once all are done
-        self.call_results: list[CallResult] = []
-        self.transcript: list[TranscriptLine] = []  # everything said in this game's calls, in order
+        self.call_summary = CallSummary()  # what was said in this game's calls, and how they ended
         self._socket_updater: Callable[[], None] | None = None  # sends the state to the browser; see set_socket_updater
 
     @classmethod
@@ -71,7 +59,17 @@ class Game:
             agent_position=Position(rows - 1, cols - 1),
         )
 
-    def set_socket_updater(self, socket_updater: Callable[[], None]) -> None:
+    # --- The browser: what it sees ---
+
+    def state(self) -> dict:
+        return {
+            "grid": self.grid,
+            "player_position": self.player_position,
+            "agent_position": self.agent_position,
+            "in_conversation": self.in_conversation,
+        }
+
+    def set_socket_emission_fn(self, socket_updater: Callable[[], None]) -> None:
         """How to send this game's state to its browser. main.py sets it when the socket connects."""
         self._socket_updater = socket_updater
 
@@ -79,6 +77,8 @@ class Game:
         """Send the current state to the browser, if one is connected."""
         if self._socket_updater:
             self._socket_updater()
+
+    # --- The player: keys from the browser ---
 
     def handle_key(self, key: str) -> None:
         """Interpret a raw key from the browser. Keys the game doesn't use are ignored."""
@@ -97,25 +97,33 @@ class Game:
 
     def press_enter(self) -> None:
         """Enter starts a conversation with the agent. The game owns the conversation state."""
-        if not self.in_conversation and self._next_to_agent():
+        # Directly up, down, left or right of the agent (no diagonals).
+        row_gap = abs(self.player_position.row - self.agent_position.row)
+        col_gap = abs(self.player_position.col - self.agent_position.col)
+        agent_adjacent = row_gap + col_gap == 1
+        if not self.in_conversation and agent_adjacent:
             self.in_conversation = True  # ignored when the agent is out of reach
 
-    def end_conversation(self, result: CallResult | None = None) -> None:
-        """The student hung up (Esc) or the agent's call ended; the agent passes how it went."""
-        self.in_conversation = False
-        if result:
-            self.call_results.append(result)
-            # The agent ended it, with no key press to answer, so tell the browser from here.
-            self.update_socket()
+    # --- Movement rules ---
 
-    def record_speech(self, speaker: str, text: str, utterance_id: str | None = None) -> None:
-        """Add a line to the transcript, or update an earlier version of the same utterance."""
-        if utterance_id:
-            for line in reversed(self.transcript):
-                if line.utterance_id == utterance_id:
-                    line.text = text
-                    return
-        self.transcript.append(TranscriptLine(speaker, text, utterance_id))
+    def _can_move_to(self, position: Position) -> bool:
+        # Nobody moves while talking (agent movement, once added, should use this too).
+        # In-bounds is checked before collision-free: `and` short-circuits, so the grid
+        # is never indexed out of range.
+        return (
+            not self.in_conversation
+            and self._position_in_bounds(position)
+            and self._position_collision_free(position)
+        )
+
+    def _position_in_bounds(self, position: Position) -> bool:
+        return 0 <= position.row < len(self.grid) and 0 <= position.col < len(self.grid[0])
+
+    def _position_collision_free(self, position: Position) -> bool:
+        is_empty_tile = self.grid[position.row][position.col] == EMPTY  # walls/items will block here later
+        return is_empty_tile and position != self.agent_position
+
+    # --- The conversation: what the voice agent uses during a call ---
 
     def current_objective(self) -> Objective | None:
         """The objective to work on now, or None once every objective is done."""
@@ -128,33 +136,11 @@ class Game:
         """The current objective is done; move on to the next one."""
         self.objective_index += 1
 
-    def _next_to_agent(self) -> bool:
-        # Directly up, down, left or right of the agent (no diagonals).
-        row_gap = abs(self.player_position.row - self.agent_position.row)
-        col_gap = abs(self.player_position.col - self.agent_position.col)
-        return row_gap + col_gap == 1
+    def end_conversation(self, result: CallResult | None = None) -> None:
+        """The student hung up (Esc) or the agent's call ended; the agent passes how it went."""
+        self.in_conversation = False
+        if result:
+            self.call_summary.call_results.append(result)
+            # The agent ended it, with no key press to answer, so tell the browser from here.
+            self.update_socket()
 
-    def _position_in_bounds(self, position: Position) -> bool:
-        return 0 <= position.row < len(self.grid) and 0 <= position.col < len(self.grid[0])
-
-    def _position_collision_free(self, position: Position) -> bool:
-        is_empty_tile = self.grid[position.row][position.col] == EMPTY  # walls/items will block here later
-        return is_empty_tile and position != self.agent_position
-
-    def _can_move_to(self, position: Position) -> bool:
-        # Nobody moves while talking (agent movement, once added, should use this too).
-        # In-bounds is checked before collision-free: `and` short-circuits, so the grid
-        # is never indexed out of range.
-        return (
-            not self.in_conversation
-            and self._position_in_bounds(position)
-            and self._position_collision_free(position)
-        )
-
-    def state(self) -> dict:
-        return {
-            "grid": self.grid,
-            "player_position": self.player_position,
-            "agent_position": self.agent_position,
-            "in_conversation": self.in_conversation,
-        }
