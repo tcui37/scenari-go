@@ -1,49 +1,53 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { Link, Navigate } from 'react-router'
-import { generateScripts } from '../api.ts'
-import ScriptEditor from '../components/ScriptEditor.tsx'
+import { generateChecklists } from '../api.ts'
+import ChecklistEditor from '../components/ChecklistEditor.tsx'
 import { findLanguage } from '../data/languages.ts'
-import { isComplete } from '../scenario/scenario.ts'
-import type { ObjectiveScript, Scenario } from '../scenario/types.ts'
+import { hasChecklists, isComplete } from '../scenario/scenario.ts'
+import type { ChecklistItem, Scenario } from '../scenario/types.ts'
 
 type Props = {
   scenario: Scenario
-  scripts: ObjectiveScript[] | null
-  setScripts: (scripts: ObjectiveScript[] | null) => void
+  setScenario: Dispatch<SetStateAction<Scenario>>
 }
 
-export default function ScenarioInfo({ scenario, scripts, setScripts }: Props) {
+export default function ScenarioInfo({ scenario, setScenario }: Props) {
   const [error, setError] = useState('')
   const [regenerating, setRegenerating] = useState<number | null>(null)
   const requested = useRef(false)
+  const ready = hasChecklists(scenario)
 
-  const loadScripts = useCallback(async () => {
+  const loadChecklists = useCallback(async () => {
     setError('')
     try {
-      setScripts(await generateScripts(scenario))
+      setScenario(await generateChecklists(scenario))
     } catch (e) {
       setError((e as Error).message)
     }
-  }, [scenario, setScripts])
+  }, [scenario, setScenario])
 
-  // Generate once on arrival if there are no scripts yet (the ref avoids a double call in StrictMode).
+  // Generate once on arrival if there are no checklists yet (the ref avoids a double call in StrictMode).
   useEffect(() => {
-    if (scripts || requested.current || !isComplete(scenario)) return
+    if (ready || requested.current || !isComplete(scenario)) return
     requested.current = true
-    loadScripts()
-  }, [scripts, scenario, loadScripts])
+    loadChecklists()
+  }, [ready, scenario, loadChecklists])
 
   if (!isComplete(scenario)) return <Navigate to="/create" replace />
 
-  function updateScript(index: number, script: ObjectiveScript) {
-    setScripts(scripts!.map((s, i) => (i === index ? script : s)))
+  // Uses the updater form so edits made while a regenerate is in flight aren't lost.
+  function updateChecklist(index: number, checklist: ChecklistItem[]) {
+    setScenario((current) => ({
+      ...current,
+      checklists: current.checklists.map((c, i) => (i === index ? checklist : c)),
+    }))
   }
 
   async function regenerate(index: number) {
     setRegenerating(index)
     try {
-      const [script] = await generateScripts({ ...scenario, objectives: [scenario.objectives[index]] })
-      updateScript(index, script)
+      const single = await generateChecklists({ ...scenario, objectives: [scenario.objectives[index]], checklists: [] })
+      updateChecklist(index, single.checklists[0])
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -69,30 +73,32 @@ export default function ScenarioInfo({ scenario, scripts, setScripts }: Props) {
       {error && (
         <div className="row">
           <p className="error grow">{error}</p>
-          <button type="button" className="btn-link" onClick={loadScripts}>
+          <button type="button" className="btn-link" onClick={loadChecklists}>
             Try again
           </button>
         </div>
       )}
 
-      {!scripts && !error && <p className="muted">Writing dialogue scripts...</p>}
+      {!ready && !error && <p className="muted">Writing prompts for each objective...</p>}
 
-      {scripts?.map((script, index) => (
-        <ScriptEditor
-          key={index}
-          index={index}
-          script={script}
-          onChange={(next) => updateScript(index, next)}
-          onRegenerate={() => regenerate(index)}
-          regenerating={regenerating === index}
-        />
-      ))}
+      {ready &&
+        scenario.objectives.map((objective, index) => (
+          <ChecklistEditor
+            key={index}
+            index={index}
+            objective={objective}
+            checklist={scenario.checklists[index]}
+            onChange={(checklist) => updateChecklist(index, checklist)}
+            onRegenerate={() => regenerate(index)}
+            regenerating={regenerating === index}
+          />
+        ))}
 
       <div className="actions">
         <Link to="/create" className="btn">
           Back
         </Link>
-        {scripts ? (
+        {ready ? (
           <Link to="/play" className="btn btn-primary">
             Play scenario!
           </Link>

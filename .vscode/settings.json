@@ -1,0 +1,6 @@
+{
+  // Use the scenari-go conda env for Pylance, linting and the debugger.
+  "python.defaultInterpreterPath": "/Users/tonycui/miniconda3/envs/scenari-go/bin/python",
+  // Backend modules import each other as top-level modules (e.g. `from gemini import ...`).
+  "python.analysis.extraPaths": ["backend"]
+}

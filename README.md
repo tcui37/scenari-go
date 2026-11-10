@@ -43,15 +43,16 @@ In development, Vite forwards `/api` and `/ws` to the backend (see `frontend/vit
 
 ## App flow
 
-`/` landing → `/create` scenario form → `/scenario` editable scripts → `/play` grid game → `/summary` score
+`/` landing → `/create` scenario form → `/scenario` editable checklists → `/play` grid game → `/summary` score
 
 ## Endpoints
 
 | Path           | Type      | Purpose                                                        |
 | -------------- | --------- | -------------------------------------------------------------- |
-| `/api/scripts` | POST      | Gemini writes a checklist of partner prompts per objective      |
+| `/api/checklists` | POST   | Returns the scenario with a Gemini checklist per objective     |
 | `/api/score`   | POST      | Gemini scores the conversation against the objectives          |
-| `/ws`          | WebSocket | Echo placeholder for the future backend game engine            |
+| `/api/games`   | POST      | Starts a new, isolated game; returns its `game_id` and state    |
+| `/ws/games/{game_id}` | WebSocket | Send `{"type": "move", "direction": "up"}`; receive the new state |
 
 Gemini needs `GEMINI_API_KEY` in `backend/.env`. The model is set in `backend/gemini.py`.
 

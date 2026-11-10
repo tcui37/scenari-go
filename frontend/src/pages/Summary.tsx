@@ -1,30 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
 import { scoreScenario } from '../api.ts'
-import type { ObjectiveScript, Scenario, ScoreResponse } from '../scenario/types.ts'
+import { hasChecklists } from '../scenario/scenario.ts'
+import type { Scenario, ScoreResponse } from '../scenario/types.ts'
 
 type Props = {
   scenario: Scenario
-  scripts: ObjectiveScript[] | null
   onReset: () => void
 }
 
-export default function Summary({ scenario, scripts, onReset }: Props) {
+export default function Summary({ scenario, onReset }: Props) {
   const navigate = useNavigate()
   const [result, setResult] = useState<ScoreResponse | null>(null)
   const [error, setError] = useState('')
   const requested = useRef(false)
 
   const loadScore = useCallback(async () => {
-    if (!scripts) return
+    if (!hasChecklists(scenario)) return
     setError('')
     try {
       // No conversation is recorded yet; the transcript will come from voice / the game engine.
-      setResult(await scoreScenario({ scenario, scripts, transcript: [] }))
+      setResult(await scoreScenario({ scenario, transcript: [] }))
     } catch (e) {
       setError((e as Error).message)
     }
-  }, [scenario, scripts])
+  }, [scenario])
 
   useEffect(() => {
     if (requested.current) return
@@ -32,7 +32,7 @@ export default function Summary({ scenario, scripts, onReset }: Props) {
     loadScore()
   }, [loadScore])
 
-  if (!scripts) return <Navigate to="/scenario" replace />
+  if (!hasChecklists(scenario)) return <Navigate to="/scenario" replace />
 
   function startOver() {
     onReset()

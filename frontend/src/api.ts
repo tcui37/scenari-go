@@ -1,5 +1,6 @@
 // Calls to the FastAPI backend. Vite proxies /api to localhost:8000 in dev.
-import type { ObjectiveScript, Scenario, ScoreResponse, TranscriptLine } from './scenario/types.ts'
+import type { GameState } from './game/types.ts'
+import type { Scenario, ScoreResponse, TranscriptLine } from './scenario/types.ts'
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(path, {
@@ -14,15 +15,16 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return response.json()
 }
 
-export async function generateScripts(scenario: Scenario): Promise<ObjectiveScript[]> {
-  const data = await post<{ scripts: ObjectiveScript[] }>('/api/scripts', scenario)
-  return data.scripts
+// Returns the same scenario with `checklists` filled in, one per objective.
+export function generateChecklists(scenario: Scenario): Promise<Scenario> {
+  return post<Scenario>('/api/checklists', scenario)
 }
 
-export function scoreScenario(req: {
-  scenario: Scenario
-  scripts: ObjectiveScript[]
-  transcript: TranscriptLine[]
-}): Promise<ScoreResponse> {
+export function scoreScenario(req: { scenario: Scenario; transcript: TranscriptLine[] }): Promise<ScoreResponse> {
   return post<ScoreResponse>('/api/score', req)
+}
+
+// Starts a new, isolated game on the server. Play it over the WebSocket at /ws/games/{game_id}.
+export function newGame(): Promise<{ game_id: string; state: GameState }> {
+  return post('/api/games', {})
 }

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 
-def gemini_generate[T: BaseModel](prompt: str, schema: type[T]) -> T:
+def gemini_generate(prompt: str, schema: type[BaseModel]) -> BaseModel:
     """Single-turn Gemini call; the answer is constrained to `schema`'s shape."""
     client = genai.Client()
     response = client.models.generate_content(

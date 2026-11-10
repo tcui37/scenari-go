@@ -1,7 +1,7 @@
 """Request/response models shared by the API routes."""
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # --- Scenario (what the teacher fills in) ---
@@ -13,28 +13,32 @@ class ConversationPartner(BaseModel):
     level: str  # e.g. "B1"
 
 
-class Scenario(BaseModel):
-    partner: ConversationPartner
-    setting: str = Field(max_length=200)
-    objectives: list[str] = Field(min_length=1)
-
-
-# --- Scripts (one per objective, shaped like a Guava task checklist) ---
-
 class ChecklistItem(BaseModel):
+    """One prompt for the voice agent, shaped like a Guava task checklist item."""
     # "instruction" -> a plain str checklist item (guidance for the agent)
     # "say"         -> guava.Say (spoken verbatim)
     kind: Literal["instruction", "say"]
     text: str
 
 
-class ObjectiveScript(BaseModel):
-    objective: str
-    checklist: list[ChecklistItem]
+class Scenario(BaseModel):
+    partner: ConversationPartner
+    setting: str = Field(max_length=200)
+    objectives: list[str] = Field(min_length=1)
+    # Parallel to objectives: checklists[i] belongs to objectives[i]. Empty = not generated yet.
+    checklists: list[list[ChecklistItem]] = []
+
+    @model_validator(mode="after")
+    def checklists_match_objectives(self):
+        if self.checklists and len(self.checklists) != len(self.objectives):
+            raise ValueError("checklists must have one entry per objective")
+        return self
 
 
-class ScriptsResponse(BaseModel):
-    scripts: list[ObjectiveScript]
+# --- What Gemini produces: checklists only (it never repeats the objectives) ---
+
+class GeneratedChecklists(BaseModel):
+    checklists: list[list[ChecklistItem]]  # one per objective, same order
 
 
 # --- Scoring ---
@@ -46,7 +50,6 @@ class TranscriptLine(BaseModel):
 
 class ScoreRequest(BaseModel):
     scenario: Scenario
-    scripts: list[ObjectiveScript]
     transcript: list[TranscriptLine] = []
 
 

@@ -1,9 +1,10 @@
-import type { ChecklistItem, ObjectiveScript } from '../scenario/types.ts'
+import type { ChecklistItem } from '../scenario/types.ts'
 
 type Props = {
   index: number
-  script: ObjectiveScript
-  onChange: (script: ObjectiveScript) => void
+  objective: string
+  checklist: ChecklistItem[]
+  onChange: (checklist: ChecklistItem[]) => void
   onRegenerate: () => void
   regenerating: boolean
 }
@@ -14,15 +15,9 @@ const KINDS: { value: ChecklistItem['kind']; label: string }[] = [
 ]
 
 // Editable list of prompts the conversation partner follows for one objective.
-export default function ScriptEditor({ index, script, onChange, onRegenerate, regenerating }: Props) {
-  const { checklist } = script
-
-  function setChecklist(next: ChecklistItem[]) {
-    onChange({ ...script, checklist: next })
-  }
-
+export default function ChecklistEditor({ index, objective, checklist, onChange, onRegenerate, regenerating }: Props) {
   function updateItem(itemIndex: number, changes: Partial<ChecklistItem>) {
-    setChecklist(checklist.map((item, i) => (i === itemIndex ? { ...item, ...changes } : item)))
+    onChange(checklist.map((item, i) => (i === itemIndex ? { ...item, ...changes } : item)))
   }
 
   return (
@@ -33,7 +28,7 @@ export default function ScriptEditor({ index, script, onChange, onRegenerate, re
           {regenerating ? 'Regenerating...' : 'Regenerate'}
         </button>
       </div>
-      <p>{script.objective}</p>
+      <p>{objective}</p>
 
       {checklist.map((item, itemIndex) => (
         <div key={itemIndex} className="checklist-item">
@@ -54,7 +49,7 @@ export default function ScriptEditor({ index, script, onChange, onRegenerate, re
             <button
               type="button"
               className="btn-link danger"
-              onClick={() => setChecklist(checklist.filter((_, i) => i !== itemIndex))}
+              onClick={() => onChange(checklist.filter((_, i) => i !== itemIndex))}
             >
               Remove
             </button>
@@ -72,7 +67,7 @@ export default function ScriptEditor({ index, script, onChange, onRegenerate, re
       <button
         type="button"
         className="btn-link align-start"
-        onClick={() => setChecklist([...checklist, { kind: 'instruction', text: '' }])}
+        onClick={() => onChange([...checklist, { kind: 'instruction', text: '' }])}
       >
         + Add prompt
       </button>

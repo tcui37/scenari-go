@@ -11,6 +11,8 @@ export type Scenario = {
   partner: ConversationPartner
   setting: string // < 200 characters
   objectives: string[]
+  // Parallel to objectives: checklists[i] belongs to objectives[i]. Empty = not generated yet.
+  checklists: ChecklistItem[][]
 }
 
 // One prompt for the voice agent. Maps to a Guava task checklist item:
@@ -18,11 +20,6 @@ export type Scenario = {
 export type ChecklistItem = {
   kind: 'instruction' | 'say'
   text: string
-}
-
-export type ObjectiveScript = {
-  objective: string
-  checklist: ChecklistItem[]
 }
 
 export type TranscriptLine = {

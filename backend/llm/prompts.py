@@ -13,7 +13,7 @@ def _describe(scenario: Scenario) -> str:
     )
 
 
-def scripts_prompt(scenario: Scenario) -> str:
+def checklists_prompt(scenario: Scenario) -> str:
     return f"""You are designing a role-play for a language learner.
 The student talks to the conversation partner below, played by a voice AI agent.
 
@@ -25,7 +25,7 @@ that part of the conversation, in order. Each item is either:
 - "say": a line the partner speaks verbatim, in {scenario.partner.language},
   at CEFR {scenario.partner.level} difficulty. Use "say" sparingly.
 
-Return one script per objective, in the same order."""
+Return one checklist per objective, in the same order."""
 
 
 def score_prompt(req: ScoreRequest) -> str:

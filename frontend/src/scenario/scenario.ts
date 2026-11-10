@@ -4,6 +4,7 @@ export const EMPTY_SCENARIO: Scenario = {
   partner: { name: '', bio: '', language: '', level: '' },
   setting: '',
   objectives: [''],
+  checklists: [],
 }
 
 // A scenario is ready to play once every field is filled in.
@@ -17,4 +18,8 @@ export function isComplete(scenario: Scenario): boolean {
     setting.trim() !== '' &&
     objectives.some((objective) => objective.trim() !== '')
   )
+}
+
+export function hasChecklists(scenario: Scenario): boolean {
+  return scenario.checklists.length > 0
 }
