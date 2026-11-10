@@ -1,17 +1,18 @@
 // Draws the grid game with PixiJS (https://pixijs.com/8.x/guides/getting-started/quick-start).
 // View only: the backend owns the game state. This draws whatever state it is given
-// and reports arrow-key presses through `onMove`.
+// and reports key presses through `onInput`.
 import { Application, Assets, Graphics, Sprite } from 'pixi.js'
-import type { Direction, GameState } from './types.ts'
+import type { GameInput, GameState, Position } from './types.ts'
 
 const TILE = 64 // px
 const PLAYER_TEXTURE = 'https://pixijs.com/assets/bunny.png' // sample sprite from the PixiJS docs
 
-const KEY_TO_DIRECTION: Record<string, Direction> = {
-  ArrowUp: 'up',
-  ArrowDown: 'down',
-  ArrowLeft: 'left',
-  ArrowRight: 'right',
+const KEY_TO_INPUT: Record<string, GameInput> = {
+  ArrowUp: { type: 'move', direction: 'up' },
+  ArrowDown: { type: 'move', direction: 'down' },
+  ArrowLeft: { type: 'move', direction: 'left' },
+  ArrowRight: { type: 'move', direction: 'right' },
+  Enter: { type: 'enter' },
 }
 
 export type GameView = {
@@ -42,27 +43,32 @@ function drawGrid(grid: number[][]): Graphics {
 export function createGame(
   container: HTMLElement,
   initial: GameState,
-  onMove: (direction: Direction) => void,
+  onInput: (input: GameInput) => void,
 ): GameView {
   const app = new Application()
   let player: Sprite | null = null
-  let latest = initial // newest state, applied once the sprite has loaded
+  let agent: Sprite | null = null
+  let latest = initial // newest state, applied once the sprites have loaded
   let initialized = false
   let destroyed = false
 
+  function place(sprite: Sprite, [row, col]: Position) {
+    sprite.x = col * TILE + TILE / 2
+    sprite.y = row * TILE + TILE / 2
+  }
+
   function render(state: GameState) {
     latest = state
-    if (!player) return
-    const [row, col] = state.player
-    player.x = col * TILE + TILE / 2
-    player.y = row * TILE + TILE / 2
+    if (!player || !agent) return
+    place(player, state.player_position)
+    place(agent, state.agent_position)
   }
 
   function onKeyDown(event: KeyboardEvent) {
-    const direction = KEY_TO_DIRECTION[event.key]
-    if (!direction) return
+    const input = KEY_TO_INPUT[event.key]
+    if (!input) return
     event.preventDefault() // stop arrow keys from scrolling the page
-    onMove(direction)
+    onInput(input)
   }
 
   // Pixi's init is async; wrap it in a function (top-level await breaks Vite builds).
@@ -81,8 +87,12 @@ export function createGame(
     const texture = await Assets.load(PLAYER_TEXTURE)
     if (destroyed) return
     player = new Sprite(texture)
-    player.anchor.set(0.5)
-    app.stage.addChild(player)
+    agent = new Sprite(texture)
+    agent.tint = token('--color-game-agent') // same sample sprite, tinted to tell them apart
+    for (const sprite of [agent, player]) {
+      sprite.anchor.set(0.5)
+      app.stage.addChild(sprite)
+    }
     render(latest)
     window.addEventListener('keydown', onKeyDown)
   }

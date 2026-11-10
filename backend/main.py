@@ -23,6 +23,7 @@ def ask_gemini(prompt: str, schema: type[BaseModel]) -> BaseModel:
 
 # Plain `def` (not async): FastAPI runs these in a thread pool, so the blocking
 # Gemini call doesn't stall other requests.
+# TODO: why?
 @app.post("/api/checklists")
 def generate_checklists(scenario: Scenario) -> Scenario:
     """Returns the scenario with one generated checklist per objective."""
@@ -38,18 +39,18 @@ def score_scenario(req: ScoreRequest) -> ScoreResponse:
     return ask_gemini(score_prompt(req), ScoreResponse)
 
 
-# --- Game: each game is isolated by its ID; state lives in memory until the server restarts ---
-
+# --- Game: each game is isolated by its ID; it lives in memory while its socket is connected ---
 games: dict[str, Game] = {}
 
 
 @app.post("/api/games")
-def create_game() -> dict:
+def create_game(scenario: Scenario) -> dict:
     game_id = uuid4().hex
-    games[game_id] = Game()
+    games[game_id] = Game.from_scenario(scenario)
     return {"game_id": game_id, "state": games[game_id].state()}
 
 
+# TODO: refine socket logic
 @app.websocket("/ws/games/{game_id}")
 async def play_game(websocket: WebSocket, game_id: str):
     await websocket.accept()
@@ -62,11 +63,17 @@ async def play_game(websocket: WebSocket, game_id: str):
     await websocket.send_json({"type": "state", **game.state()})
     try:
         while True:
-            message = await websocket.receive_json()  # {"type": "move", "direction": "up"}
-            if message.get("type") == "move" and message.get("direction") in DIRECTIONS:
-                game.move(message["direction"])
-                await websocket.send_json({"type": "state", **game.state()})
-            else:
-                await websocket.send_json({"type": "error", "message": "Expected a move: up, down, left or right."})
+            message = await websocket.receive_json()
+            match message.get("type"):
+                case "move" if message.get("direction") in DIRECTIONS:  # {"type": "move", "direction": "up"}
+                    game.move_player(message["direction"])
+                case "enter":  # {"type": "enter"}; the game decides what Enter does
+                    game.press_enter()
+                case _:
+                    await websocket.send_json({"type": "error", "message": "Unknown input."})
+                    continue
+            await websocket.send_json({"type": "state", **game.state()})
     except WebSocketDisconnect:
-        pass  # the game stays in memory, so reconnecting with the same ID resumes it
+        pass  # the browser left: "Finish scenario", Back, closing the tab, or a dropped connection
+    finally:
+        games.pop(game_id, None)  # a game lasts for one connection; it's gone once the socket closes

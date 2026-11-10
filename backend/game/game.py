@@ -1,4 +1,7 @@
-"""A barebones 2D grid game: one player moving up, down, left and right."""
+"""A barebones 2D grid game: the student (player) moves around a grid with the conversation partner (agent)."""
+from typing import NamedTuple
+
+from schemas import Scenario
 
 EMPTY = 0  # tile values; walls and items can be added later
 
@@ -6,16 +9,75 @@ EMPTY = 0  # tile values; walls and items can be added later
 DIRECTIONS = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
 
 
-class Game:
-    def __init__(self, rows: int = 8, cols: int = 10):
-        self.grid = [[EMPTY] * cols for _ in range(rows)]  # grid[row][col], tiles only
-        self.player = [0, 0]  # [row, col], kept separate from the grid
+class Position(NamedTuple):
+    row: int
+    col: int
 
-    def move(self, direction: str) -> None:
+
+class Game:
+    def __init__(
+        self,
+        scenario: Scenario,
+        grid: list[list[int]],
+        player_position: Position,
+        agent_position: Position,
+    ):
+        self.scenario = scenario
+        self.grid = grid  # grid[row][col], tiles only
+        self.player_position = player_position  # the student
+        self.agent_position = agent_position  # the conversation partner
+        self.in_conversation = False  # while True, nobody moves
+
+    @classmethod
+    def from_scenario(cls, scenario: Scenario, rows: int = 8, cols: int = 10) -> "Game":
+        """A new game for `scenario`: empty grid, player top-left, agent bottom-right."""
+        return cls(
+            scenario=scenario,
+            grid=[[EMPTY] * cols for _ in range(rows)],
+            player_position=Position(0, 0),
+            agent_position=Position(rows - 1, cols - 1),
+        )
+
+    def move_player(self, direction: str) -> None:
         dr, dc = DIRECTIONS[direction]  # KeyError for an unknown direction
-        row, col = self.player[0] + dr, self.player[1] + dc
-        if 0 <= row < len(self.grid) and 0 <= col < len(self.grid[0]):
-            self.player = [row, col]  # moves off the edge are ignored
+        target = Position(self.player_position.row + dr, self.player_position.col + dc)
+        if self._can_move_to(target):
+            self.player_position = target  # disallowed moves are ignored
+
+    def press_enter(self) -> None:
+        """Enter talks to the agent. The game owns the conversation state."""
+        if self.in_conversation:
+            self.in_conversation = False  # stand-in until the voice call ends conversations
+        elif self._next_to_agent():
+            self.in_conversation = True  # ignored when the agent is out of reach
+
+    def _next_to_agent(self) -> bool:
+        # Directly up, down, left or right of the agent (no diagonals).
+        row_gap = abs(self.player_position.row - self.agent_position.row)
+        col_gap = abs(self.player_position.col - self.agent_position.col)
+        return row_gap + col_gap == 1
+
+    def _position_in_bounds(self, position: Position) -> bool:
+        return 0 <= position.row < len(self.grid) and 0 <= position.col < len(self.grid[0])
+
+    def _position_collision_free(self, position: Position) -> bool:
+        is_empty_tile = self.grid[position.row][position.col] == EMPTY  # walls/items will block here later
+        return is_empty_tile and position != self.agent_position
+
+    def _can_move_to(self, position: Position) -> bool:
+        # Nobody moves while talking (agent movement, once added, should use this too).
+        # In-bounds is checked before collision-free: `and` short-circuits, so the grid
+        # is never indexed out of range.
+        return (
+            not self.in_conversation
+            and self._position_in_bounds(position)
+            and self._position_collision_free(position)
+        )
 
     def state(self) -> dict:
-        return {"grid": self.grid, "player": self.player}
+        return {
+            "grid": self.grid,
+            "player_position": self.player_position,
+            "agent_position": self.agent_position,
+            "in_conversation": self.in_conversation,
+        }

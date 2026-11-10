@@ -24,7 +24,7 @@ export function scoreScenario(req: { scenario: Scenario; transcript: TranscriptL
   return post<ScoreResponse>('/api/score', req)
 }
 
-// Starts a new, isolated game on the server. Play it over the WebSocket at /ws/games/{game_id}.
-export function newGame(): Promise<{ game_id: string; state: GameState }> {
-  return post('/api/games', {})
+// Starts a new, isolated game for `scenario`. Play it over the WebSocket at /ws/games/{game_id}.
+export function newGame(scenario: Scenario): Promise<{ game_id: string; state: GameState }> {
+  return post('/api/games', scenario)
 }

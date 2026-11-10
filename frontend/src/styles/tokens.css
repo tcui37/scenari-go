@@ -52,6 +52,7 @@
   --color-game-tile: var(--color-green-light);
   --color-game-tile-alt: var(--color-white);
   --color-game-grid-line: var(--color-gray-200);
+  --color-game-agent: var(--color-purple); /* tint for the conversation partner sprite */
 
   /* ---- Typography ---- */
   /* Duolingo uses proprietary Feather Bold / DIN Next Rounded; Nunito is the open substitute. */

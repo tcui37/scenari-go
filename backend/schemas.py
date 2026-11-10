@@ -1,7 +1,7 @@
 """Request/response models shared by the API routes."""
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 # --- Scenario (what the teacher fills in) ---
@@ -27,12 +27,6 @@ class Scenario(BaseModel):
     objectives: list[str] = Field(min_length=1)
     # Parallel to objectives: checklists[i] belongs to objectives[i]. Empty = not generated yet.
     checklists: list[list[ChecklistItem]] = []
-
-    @model_validator(mode="after")
-    def checklists_match_objectives(self):
-        if self.checklists and len(self.checklists) != len(self.objectives):
-            raise ValueError("checklists must have one entry per objective")
-        return self
 
 
 # --- What Gemini produces: checklists only (it never repeats the objectives) ---

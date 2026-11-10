@@ -12,9 +12,10 @@ type Props = {
 export default function Play({ scenario }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState('')
+  const [inConversation, setInConversation] = useState(false)
 
   // Start a game on the server, then mirror its state over a WebSocket.
-  // The server owns the game; this page only sends moves and draws what comes back.
+  // The server owns the game; this page only sends inputs and draws what comes back.
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -22,17 +23,19 @@ export default function Play({ scenario }: Props) {
     let socket: WebSocket | null = null
     let view: GameView | null = null
 
-    newGame()
+    newGame(scenario)
       .then(({ game_id, state }) => {
         if (cancelled) return
         const ws = new WebSocket(`/ws/games/${game_id}`)
         socket = ws
-        view = createGame(container, state, (direction) => {
-          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'move', direction }))
+        view = createGame(container, state, (input) => {
+          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(input))
         })
         ws.onmessage = (event) => {
           const message = JSON.parse(event.data)
-          if (message.type === 'state') view?.render(message)
+          if (message.type !== 'state') return
+          view?.render(message)
+          setInConversation(message.in_conversation)
         }
       })
       .catch(() => setError('Could not start a game. Is the backend running?'))
@@ -42,14 +45,18 @@ export default function Play({ scenario }: Props) {
       socket?.close()
       view?.destroy()
     }
-  }, [])
+  }, [scenario])
 
   if (!hasChecklists(scenario)) return <Navigate to="/scenario" replace />
 
   return (
     <div className="stack">
       <h1>Play</h1>
-      <p className="muted">Use the arrow keys to move.</p>
+      <p className="muted">
+        {inConversation
+          ? `Talking to ${scenario.partner.name}. Press Enter to end the conversation.`
+          : `Use the arrow keys to move. Press Enter next to ${scenario.partner.name} to talk.`}
+      </p>
       {error && <p className="error">{error}</p>}
       <div ref={containerRef} className="game-canvas" />
 
