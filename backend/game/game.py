@@ -3,10 +3,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import NamedTuple
 
-from game.call_summary import CallResult, CallSummary
+from game.call_summary import CallSummary
 from game.scenario import ChecklistItem, Scenario
 
 EMPTY = 0  # tile values; walls and items can be added later
+
+ALL_DONE = "All done!"  # the subtext once every objective is done
 
 # (row change, column change) for each direction
 DIRECTIONS = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
@@ -46,8 +48,9 @@ class Game:
         self.agent_position = agent_position  # the conversation partner
         self.in_conversation = False  # while True, nobody moves
         self.objective_index = 0  # the objective being worked on; len(objectives) once all are done
-        self.call_summary = CallSummary()  # what was said in this game's calls, and how they ended
-        self._socket_updater: Callable[[], None] | None = None  # sends the state to the browser; see set_socket_updater
+        self.call_summary = CallSummary()  # what was said in this game's calls
+        self.subtext = self._walk_hint()  # the line shown under "Play"
+        self._socket_updater: Callable[[], None] | None = None  # sends the state to the browser; see set_socket_emission_fn
 
     @classmethod
     def from_scenario(cls, scenario: Scenario, rows: int = 8, cols: int = 10) -> "Game":
@@ -67,6 +70,7 @@ class Game:
             "player_position": self.player_position,
             "agent_position": self.agent_position,
             "in_conversation": self.in_conversation,
+            "subtext": self.subtext,
         }
 
     def set_socket_emission_fn(self, socket_updater: Callable[[], None]) -> None:
@@ -103,6 +107,7 @@ class Game:
         agent_adjacent = row_gap + col_gap == 1
         if not self.in_conversation and agent_adjacent:
             self.in_conversation = True  # ignored when the agent is out of reach
+            self.subtext = f"Getting {self.scenario.partner.name}'s attention..."  # until the call connects
 
     # --- Movement rules ---
 
@@ -132,15 +137,29 @@ class Game:
             return None
         return Objective(self.scenario.objectives[index], self.scenario.checklists[index])
 
-    def complete_objective(self) -> None:
-        """The current objective is done; move on to the next one."""
-        self.objective_index += 1
+    def start_call(self) -> None:
+        """The voice call connected: show the objective at hand."""
+        self._show_objective()
+        self.update_socket()  # from the agent's thread, with no key press to answer
 
-    def end_conversation(self, result: CallResult | None = None) -> None:
-        """The student hung up (Esc) or the agent's call ended; the agent passes how it went."""
+    def complete_objective(self) -> None:
+        """The current objective is done; move on to the next one, and show it."""
+        self.objective_index += 1
+        self._show_objective()
+        self.update_socket()  # from the agent's thread, with no key press to answer
+
+    def end_conversation(self, by_agent: bool = False) -> None:
+        """The student hung up (Esc), or the agent's call ended (by_agent)."""
         self.in_conversation = False
-        if result:
-            self.call_summary.call_results.append(result)
+        self.subtext = ALL_DONE if self.current_objective() is None else self._walk_hint()
+        if by_agent:
             # The agent ended it, with no key press to answer, so tell the browser from here.
             self.update_socket()
+
+    def _show_objective(self) -> None:
+        objective = self.current_objective()
+        self.subtext = f"Objective: {objective.text}" if objective else ALL_DONE
+
+    def _walk_hint(self) -> str:
+        return f"Use the arrow keys to move. Press Enter next to {self.scenario.partner.name} to talk."
 

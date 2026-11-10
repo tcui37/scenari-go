@@ -1,11 +1,5 @@
-"""What a game records about its calls: everything said, and how each call ended."""
+"""What a game records about its calls: everything said."""
 from dataclasses import dataclass, field
-
-
-@dataclass
-class CallResult:
-    """How a conversation ended."""
-    termination_reason: str  # "user-hangup" | "bot-hangup" | "bot-failure"
 
 
 @dataclass
@@ -20,7 +14,6 @@ class TranscriptLine:
 class CallSummary:
     """All of a game's calls, in order. The voice agent records into it; "Finish scenario" scores it."""
     transcript: list[TranscriptLine] = field(default_factory=list)
-    call_results: list[CallResult] = field(default_factory=list)
 
     def record_speech(self, speaker: str, text: str, utterance_id: str | None = None) -> None:
         """Add a line to the transcript, or update an earlier version of the same utterance."""
