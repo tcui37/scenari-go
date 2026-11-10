@@ -19,13 +19,15 @@ The student talks to the conversation partner below, played by an AI.
 
 {_describe(scenario)}
 
-For EACH objective, write a checklist of 3-6 prompts that guide the partner through
+For EACH objective, write a checklist of 1-2 prompts that guide the partner through
 that part of the conversation, in order. Each item is either:
 - "instruction": guidance for the partner, in English (e.g. "Ask what size they want.")
 - "say": a line the partner speaks verbatim, in {scenario.partner.language},
   at CEFR {scenario.partner.level} difficulty. Use "say" sparingly.
 
-Return one checklist per objective, in the same order."""
+Return exactly {len(scenario.objectives)} checklist(s): one per objective, in the same order.
+Each objective is one unit, even if it asks for several things (e.g. "order a drink and a pastry"
+gets a single checklist covering both). Never split an objective into multiple checklists."""
 
 
 def score_prompt(req: ScoreRequest) -> str:

@@ -33,6 +33,11 @@ def generate_checklists(scenario: Scenario) -> Scenario:
     """Returns the scenario with one generated checklist per objective."""
     result = ask_gemini(checklists_prompt(scenario), GeneratedChecklists)
     if len(result.checklists) != len(scenario.objectives):
+        # Debug: show what Gemini returned in the `fastapi dev` terminal.
+        print("Scenario sent:")
+        print(scenario.model_dump_json(indent=2))
+        print(f"Expected {len(scenario.objectives)} checklists, got {len(result.checklists)}:")
+        print(result.model_dump_json(indent=2))
         raise HTTPException(502, "Gemini skipped an objective. Please try again.")
     scenario.checklists = result.checklists
     return scenario
