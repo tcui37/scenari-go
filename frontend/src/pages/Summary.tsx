@@ -1,38 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
-import { scoreScenario } from '../api.ts'
 import { hasChecklists } from '../scenario/scenario.ts'
-import type { Scenario, ScoreResponse } from '../scenario/types.ts'
+import type { GameSummary, Scenario } from '../scenario/types.ts'
 
 type Props = {
   scenario: Scenario
+  summary: GameSummary | null // scored by "Finish scenario" on the Play page
   onReset: () => void
 }
 
-export default function Summary({ scenario, onReset }: Props) {
+export default function Summary({ scenario, summary, onReset }: Props) {
   const navigate = useNavigate()
-  const [result, setResult] = useState<ScoreResponse | null>(null)
-  const [error, setError] = useState('')
-  const requested = useRef(false)
-
-  const loadScore = useCallback(async () => {
-    if (!hasChecklists(scenario)) return
-    setError('')
-    try {
-      // No conversation is recorded yet; the transcript will come from the game.
-      setResult(await scoreScenario({ scenario, transcript: [] }))
-    } catch (e) {
-      setError((e as Error).message)
-    }
-  }, [scenario])
-
-  useEffect(() => {
-    if (requested.current) return
-    requested.current = true
-    loadScore()
-  }, [loadScore])
 
   if (!hasChecklists(scenario)) return <Navigate to="/scenario" replace />
+  if (!summary) return <Navigate to="/play" replace />
 
   function startOver() {
     onReset()
@@ -43,34 +23,34 @@ export default function Summary({ scenario, onReset }: Props) {
     <div className="stack">
       <h1>Scenario summary</h1>
 
-      {error && (
-        <div className="row">
-          <p className="error grow">{error}</p>
-          <button type="button" className="btn-link" onClick={loadScore}>
-            Try again
-          </button>
+      <section className="card">
+        <div className="score">{summary.evaluation.overall_score}/100</div>
+        <p>{summary.evaluation.summary}</p>
+      </section>
+
+      {summary.evaluation.objectives.map((objective, index) => (
+        <div key={index} className={`result ${objective.met ? 'met' : 'not-met'}`}>
+          <strong>
+            {objective.met ? '✓' : '✗'} {objective.objective}
+          </strong>
+          <p>{objective.feedback}</p>
         </div>
-      )}
+      ))}
 
-      {!result && !error && <p className="muted">Scoring your conversation...</p>}
-
-      {result && (
-        <>
-          <section className="card">
-            <div className="score">{result.overall_score}/100</div>
-            <p>{result.summary}</p>
-          </section>
-
-          {result.objectives.map((objective, index) => (
-            <div key={index} className={`result ${objective.met ? 'met' : 'not-met'}`}>
-              <strong>
-                {objective.met ? '✓' : '✗'} {objective.objective}
-              </strong>
-              <p>{objective.feedback}</p>
-            </div>
-          ))}
-        </>
-      )}
+      <details className="card transcript">
+        <summary>Transcript ({summary.transcript.length} lines)</summary>
+        {summary.transcript.length === 0 ? (
+          <p className="muted">No conversation was recorded.</p>
+        ) : (
+          <ol>
+            {summary.transcript.map((line, index) => (
+              <li key={index}>
+                <strong>{line.speaker === 'student' ? 'You' : scenario.partner.name}:</strong> {line.text}
+              </li>
+            ))}
+          </ol>
+        )}
+      </details>
 
       <div className="actions">
         <Link to="/play" className="btn">

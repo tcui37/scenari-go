@@ -32,3 +32,9 @@ export type ScoreResponse = {
   summary: string
   objectives: { objective: string; met: boolean; feedback: string }[]
 }
+
+// What "Finish scenario" returns: Gemini's evaluation, plus the transcript it was scored on.
+export type GameSummary = {
+  evaluation: ScoreResponse
+  transcript: TranscriptLine[]
+}

@@ -1,6 +1,5 @@
 // Calls to the FastAPI backend. Vite proxies /api to localhost:8000 in dev.
-import type { GameState } from './game/types.ts'
-import type { Scenario, ScoreResponse, TranscriptLine } from './scenario/types.ts'
+import type { GameSummary, Scenario } from './scenario/types.ts'
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(path, {
@@ -20,12 +19,7 @@ export function generateChecklists(scenario: Scenario): Promise<Scenario> {
   return post<Scenario>('/api/checklists', scenario)
 }
 
-export function scoreScenario(req: { scenario: Scenario; transcript: TranscriptLine[] }): Promise<ScoreResponse> {
-  return post<ScoreResponse>('/api/score', req)
-}
-
-// Starts a new, isolated game for `scenario`. Play it over the WebSocket at /ws/games/{game_id}.
-// `webrtc_code` is the code the voice agent listens on; the browser calls it during a conversation.
-export function newGame(scenario: Scenario): Promise<{ game_id: string; state: GameState; webrtc_code: string }> {
-  return post('/api/games', scenario)
+// Scores the game's conversation with Gemini; returns the per-objective results and the transcript.
+export function summarizeGame(gameId: string): Promise<GameSummary> {
+  return post<GameSummary>(`/api/games/${gameId}/summary`, {})
 }

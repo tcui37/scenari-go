@@ -1,70 +1,77 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router'
-import * as Guava from '@guava-ai/guava-sdk/webrtc'
-import { newGame } from '../api.ts'
+import { summarizeGame } from '../api.ts'
 import { createGame, type GameView } from '../game/createGame.ts'
+import type { ServerMessage } from '../game/types.ts'
+import { createVoiceCall, type VoiceCall } from '../game/voiceCall.ts'
 import { hasChecklists } from '../scenario/scenario.ts'
-import type { Scenario } from '../scenario/types.ts'
+import type { GameSummary, Scenario } from '../scenario/types.ts'
 
 type Props = {
   scenario: Scenario
+  onFinish: (summary: GameSummary) => void
 }
 
-export default function Play({ scenario }: Props) {
+export default function Play({ scenario, onFinish }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const socketRef = useRef<WebSocket | null>(null) // so "Finish scenario" can reach the game
+  const gameIdRef = useRef<string | null>(null)
   const [error, setError] = useState('')
   const [inConversation, setInConversation] = useState(false)
+  const [finishing, setFinishing] = useState(false)
 
-  // Start a game on the server, then mirror its state over a WebSocket.
-  // The server owns the game: this page only sends raw key presses and shows what comes back.
+  // One WebSocket is one game: the server creates it from the scenario we send first, then
+  // owns it. This page only sends raw key presses and shows the state that comes back.
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-    let cancelled = false
-    let socket: WebSocket | null = null
+    const ws = new WebSocket('/ws/game')
+    socketRef.current = ws
     let view: GameView | null = null
-    let call: Guava.Call | null = null
+    let voiceCall: VoiceCall | null = null
 
-    newGame(scenario)
-      .then(({ game_id, state, webrtc_code }) => {
-        if (cancelled) return
-        const ws = new WebSocket(`/ws/games/${game_id}`)
-        socket = ws
+    function sendKey(key: string) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(key)
+    }
 
-        view = createGame(container, state, (key) => {
-          if (ws.readyState === WebSocket.OPEN) ws.send(key)
-        })
+    ws.onopen = () => ws.send(JSON.stringify(scenario)) // the first message creates the game
+    ws.onclose = () => setError('Lost the connection to the game. Go Back and press Play again.')
 
-        ws.onmessage = (event) => {
-          const message = JSON.parse(event.data)
-          if (message.type !== 'state') return
-          view?.render(message)
-          setInConversation(message.in_conversation)
-
-          // The voice call follows the game's state: the game decides when a conversation
-          // starts and ends, and the browser only places or drops the call.
-          if (message.in_conversation && !call) {
-            const started = new Guava.Call({ webrtcCode: webrtc_code, customPayload: { game_id } })
-            call = started
-            started.start().catch(() => {
-              setError(`Call failed: ${started.error?.message ?? 'unknown error'}. Press Esc to end the conversation.`)
-            })
-          } else if (!message.in_conversation && call) {
-            call.hangup()
-            call = null
-            setError('')
-          }
-        }
-      })
-      .catch(() => setError('Could not start a game. Is the backend running?'))
+    ws.onmessage = (event) => {
+      const message: ServerMessage = JSON.parse(event.data)
+      if (message.type === 'game_created') {
+        gameIdRef.current = message.game_id
+        voiceCall = createVoiceCall(message, setError)
+      } else {
+        view ??= createGame(container, message, sendKey)
+        view.render(message)
+        setInConversation(message.in_conversation)
+        voiceCall?.follow(message.in_conversation)
+      }
+    }
 
     return () => {
-      cancelled = true
-      socket?.close()
-      call?.hangup()
+      ws.onclose = null // closing it ourselves isn't an error
+      ws.close()
+      voiceCall?.hangup()
       view?.destroy()
     }
   }, [scenario])
+
+  // Score the conversation while the game still exists (it ends when this page closes its socket).
+  async function finish() {
+    const gameId = gameIdRef.current
+    if (!gameId) return
+    socketRef.current?.send('Escape') // ends any conversation, which hangs up the call
+    setFinishing(true)
+    setError('')
+    try {
+      onFinish(await summarizeGame(gameId))
+    } catch (e) {
+      setError((e as Error).message)
+      setFinishing(false)
+    }
+  }
 
   if (!hasChecklists(scenario)) return <Navigate to="/scenario" replace />
 
@@ -83,9 +90,9 @@ export default function Play({ scenario }: Props) {
         <Link to="/scenario" className="btn">
           Back
         </Link>
-        <Link to="/summary" className="btn btn-primary">
-          Finish scenario
-        </Link>
+        <button type="button" className="btn btn-primary" onClick={finish} disabled={finishing}>
+          {finishing ? 'Scoring your conversation...' : 'Finish scenario'}
+        </button>
       </div>
     </div>
   )

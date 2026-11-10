@@ -32,6 +32,14 @@ class CallResult:
     termination_reason: str  # "user-hangup" | "bot-hangup" | "bot-failure"
 
 
+@dataclass
+class TranscriptLine:
+    """One thing said during a call."""
+    speaker: str  # "student" | "partner"
+    text: str
+    utterance_id: str | None = None  # speech recognition re-sends a line as it refines it; same id = same line
+
+
 class Game:
     """The player drives the game with keys. During a conversation the game hands control to the
     agent, which drives it through current_objective / complete_objective / end_conversation."""
@@ -50,7 +58,8 @@ class Game:
         self.in_conversation = False  # while True, nobody moves
         self.objective_index = 0  # the objective being worked on; len(objectives) once all are done
         self.call_results: list[CallResult] = []
-        self.update_socket: Callable[[], None] | None = None  # sends the state to the browser; set by main.py
+        self.transcript: list[TranscriptLine] = []  # everything said in this game's calls, in order
+        self._socket_updater: Callable[[], None] | None = None  # sends the state to the browser; see set_socket_updater
 
     @classmethod
     def from_scenario(cls, scenario: Scenario, rows: int = 8, cols: int = 10) -> "Game":
@@ -61,6 +70,15 @@ class Game:
             player_position=Position(0, 0),
             agent_position=Position(rows - 1, cols - 1),
         )
+
+    def set_socket_updater(self, socket_updater: Callable[[], None]) -> None:
+        """How to send this game's state to its browser. main.py sets it when the socket connects."""
+        self._socket_updater = socket_updater
+
+    def update_socket(self) -> None:
+        """Send the current state to the browser, if one is connected."""
+        if self._socket_updater:
+            self._socket_updater()
 
     def handle_key(self, key: str) -> None:
         """Interpret a raw key from the browser. Keys the game doesn't use are ignored."""
@@ -88,8 +106,16 @@ class Game:
         if result:
             self.call_results.append(result)
             # The agent ended it, with no key press to answer, so tell the browser from here.
-            if self.update_socket:
-                self.update_socket()
+            self.update_socket()
+
+    def record_speech(self, speaker: str, text: str, utterance_id: str | None = None) -> None:
+        """Add a line to the transcript, or update an earlier version of the same utterance."""
+        if utterance_id:
+            for line in reversed(self.transcript):
+                if line.utterance_id == utterance_id:
+                    line.text = text
+                    return
+        self.transcript.append(TranscriptLine(speaker, text, utterance_id))
 
     def current_objective(self) -> Objective | None:
         """The objective to work on now, or None once every objective is done."""

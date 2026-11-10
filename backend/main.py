@@ -11,14 +11,17 @@ from pydantic import BaseModel
 
 from game.game import Game
 from game.scenario import Scenario
-from llm.gemini import gemini_generate
+from llm.gemini import gemini_generate_with_schema
 from llm.prompts import checklists_prompt, score_prompt
-from schemas import GeneratedChecklistsModel, ScenarioModel, ScoreRequestModel, ScoreResponseModel
+from schemas import GameSummaryModel, GeneratedChecklistsModel, ScenarioModel, ScoreResponseModel, TranscriptLineModel
 from voice.agent import create_agent
 
 load_dotenv()  # loads GEMINI_API_KEY, GUAVA_API_KEY and GUAVA_WEBRTC_CODE from backend/.env
 
-# --- Games: each game is isolated by its ID; it lives in memory while its socket is connected ---
+GUAVA_WEBRTC_CODE = os.environ["GUAVA_WEBRTC_CODE"]  # the one code the shared voice agent listens on
+
+# Games with an open socket, by ID. One socket is one game: it is registered when its socket
+# sends the scenario and removed when the socket closes. The voice agent finds a call's game here.
 games: dict[str, Game] = {}
 
 
@@ -27,27 +30,26 @@ async def lifespan(app: FastAPI):
     """On startup, one voice agent starts answering calls for every game."""
     agent = create_agent(games.get)
     # listen_webrtc blocks for as long as it listens, so it gets its own thread.
-    threading.Thread(target=agent.listen_webrtc, args=(os.environ["GUAVA_WEBRTC_CODE"],), daemon=True).start()
+    threading.Thread(target=agent.listen_webrtc, args=(GUAVA_WEBRTC_CODE,), daemon=True).start()
     yield
 
 
 app = FastAPI(lifespan=lifespan)
 
-def ask_gemini(prompt: str, schema: type[BaseModel]) -> BaseModel:
+async def ask_gemini(prompt: str, schema: type[BaseModel]) -> BaseModel:
     """Call Gemini; any failure becomes a 502 for the frontend."""
     try:
-        return gemini_generate(prompt, schema)
+        return await gemini_generate_with_schema(prompt, schema)
     except Exception:
         raise HTTPException(502, "Gemini request failed. Please try again.")
 
 
-# Plain `def` (not async): FastAPI runs these in a thread pool, so the blocking
-# Gemini call doesn't stall other requests.
-# TODO: why?
+# The Gemini routes are `async def` and await the async Gemini client, so the event loop
+# serves other requests and game sockets while Gemini answers.
 @app.post("/api/checklists")
-def generate_checklists(scenario: ScenarioModel) -> ScenarioModel:
+async def generate_checklists(scenario: ScenarioModel) -> ScenarioModel:
     """Returns the scenario with one generated checklist per objective."""
-    result = ask_gemini(checklists_prompt(Scenario.from_model(scenario)), GeneratedChecklistsModel)
+    result = await ask_gemini(checklists_prompt(Scenario.from_model(scenario)), GeneratedChecklistsModel)
     if len(result.checklists) != len(scenario.objectives):
         # Debug: show what Gemini returned in the `fastapi dev` terminal.
         print("Scenario sent:")
@@ -59,20 +61,19 @@ def generate_checklists(scenario: ScenarioModel) -> ScenarioModel:
     return scenario
 
 
-@app.post("/api/score")
-def score_scenario(req: ScoreRequestModel) -> ScoreResponseModel:
-    return ask_gemini(score_prompt(Scenario.from_model(req.scenario), req.transcript), ScoreResponseModel)
+@app.post("/api/games/{game_id}/summary")
+async def summarize_game(game_id: str) -> GameSummaryModel:
+    """Scores the game's conversation so far with Gemini, and returns it with the transcript."""
+    game = games.get(game_id)
+    if game is None:
+        raise HTTPException(404, "This game has ended. Play again to get a summary.")
+    # Copy first: the voice agent may still be adding lines from its own thread.
+    transcript = [TranscriptLineModel(speaker=line.speaker, text=line.text) for line in list(game.transcript)]
+    score = await ask_gemini(score_prompt(game.scenario, transcript), ScoreResponseModel)
+    return GameSummaryModel(evaluation=score, transcript=transcript)
 
 
-@app.post("/api/games")
-def create_game(scenario: ScenarioModel) -> dict:
-    game_id = uuid4().hex
-    games[game_id] = Game.from_scenario(Scenario.from_model(scenario))
-    # The browser places the voice call, so it needs the code the agent listens on.
-    return {"game_id": game_id, "state": games[game_id].state(), "webrtc_code": os.environ["GUAVA_WEBRTC_CODE"]}
-
-
-def socket_updater(websocket: WebSocket, game: Game) -> Callable[[], None]:
+def create_socket_updater(websocket: WebSocket, game: Game) -> Callable[[], None]:
     """Returns a function that sends `game`'s state to its browser. Safe to call from any thread:
     the voice agent calls it from its own, so the send is handed to the socket's event loop."""
     loop = asyncio.get_running_loop()
@@ -83,18 +84,19 @@ def socket_updater(websocket: WebSocket, game: Game) -> Callable[[], None]:
     return update_socket
 
 
-@app.websocket("/ws/games/{game_id}")
-async def play_game(websocket: WebSocket, game_id: str):
-    """The browser sends raw key names (e.g. "ArrowUp", "Enter"); the game decides what they do."""
+@app.websocket("/ws/game")
+async def play_game(websocket: WebSocket):
+    """One socket is one game. The first message is the scenario (JSON); after that the browser
+    sends raw key names (e.g. "ArrowUp", "Enter") and the game decides what they do."""
     await websocket.accept()
-    game = games.get(game_id)
-    if game is None:
-        # Accept first, then close: browsers can only read close codes, not a refused handshake.
-        await websocket.close(code=4404, reason="Unknown game")
-        return
-
-    game.update_socket = socket_updater(websocket, game)
+    game_id = uuid4().hex
     try:
+        # No game exists until the scenario arrives, so a socket that closes early costs nothing.
+        scenario = ScenarioModel.model_validate_json(await websocket.receive_text())
+        game = games[game_id] = Game.from_scenario(Scenario.from_model(scenario))
+        game.set_socket_updater(create_socket_updater(websocket, game))
+        # The browser places the voice call: it dials the agent's code and names this game.
+        await websocket.send_json({"type": "game_created", "game_id": game_id, "webrtc_code": GUAVA_WEBRTC_CODE})
         game.update_socket()
         while True:
             game.handle_key(await websocket.receive_text())
@@ -102,4 +104,4 @@ async def play_game(websocket: WebSocket, game_id: str):
     except WebSocketDisconnect:
         pass  # the browser left: "Finish scenario", Back, closing the tab, or a dropped connection
     finally:
-        games.pop(game_id, None)  # a game lasts for one connection; it's gone once the socket closes
+        games.pop(game_id, None)  # the game ends with its socket

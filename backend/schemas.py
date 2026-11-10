@@ -42,11 +42,6 @@ class TranscriptLineModel(BaseModel):
     text: str
 
 
-class ScoreRequestModel(BaseModel):
-    scenario: ScenarioModel
-    transcript: list[TranscriptLineModel] = []
-
-
 class ObjectiveScoreModel(BaseModel):
     objective: str
     met: bool
@@ -57,3 +52,9 @@ class ScoreResponseModel(BaseModel):
     overall_score: int = Field(ge=0, le=100, description="Overall score from 0 to 100")
     summary: str
     objectives: list[ObjectiveScoreModel]
+
+
+class GameSummaryModel(BaseModel):
+    """What "Finish scenario" returns: Gemini's evaluation, plus the transcript it was scored on."""
+    evaluation: ScoreResponseModel
+    transcript: list[TranscriptLineModel]

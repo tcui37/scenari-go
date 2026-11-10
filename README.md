@@ -50,16 +50,16 @@ In development, Vite forwards `/api` and `/ws` to the backend (see `frontend/vit
 | Path           | Type      | Purpose                                                        |
 | -------------- | --------- | -------------------------------------------------------------- |
 | `/api/checklists` | POST   | Returns the scenario with a Gemini checklist per objective     |
-| `/api/score`   | POST      | Gemini scores the conversation against the objectives          |
-| `/api/games`   | POST      | Starts a new, isolated game; returns its `game_id`, state and the voice `webrtc_code` |
-| `/ws/games/{game_id}` | WebSocket | Send raw key names (`ArrowUp`, `Enter`, `Escape`); receive the state whenever it changes |
+| `/api/games/{game_id}/summary` | POST | Gemini scores the game's conversation; returns each objective (met or not) and the transcript |
+| `/ws/game`     | WebSocket | One socket is one game. Send the scenario (JSON) and receive `game_created` (`game_id`, voice `webrtc_code`); then send raw key names (`ArrowUp`, `Enter`, `Escape`) and receive `state` whenever it changes |
 
 Gemini needs `GEMINI_API_KEY` in `backend/.env`. The model is set in `backend/llm/gemini.py`.
 
 ## Voice (Guava)
 
 Pressing Enter next to the conversation partner starts a voice call with a Guava agent
-(`backend/voice/agent.py`). For the length of the call the agent drives the game: it works through
+(`backend/voice/agent.py`). One agent serves every game; the browser names its game when it places
+the call. For the length of the call the agent drives the game: it works through
 the game's objectives and ends the conversation when the call ends. Esc hangs up early.
 
 `backend/.env` needs `GUAVA_API_KEY` and `GUAVA_WEBRTC_CODE` (create a code with
