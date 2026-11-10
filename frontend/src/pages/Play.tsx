@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router'
+import * as Guava from '@guava-ai/guava-sdk/webrtc'
 import { newGame } from '../api.ts'
 import { createGame, type GameView } from '../game/createGame.ts'
 import { hasChecklists } from '../scenario/scenario.ts'
@@ -22,9 +23,10 @@ export default function Play({ scenario }: Props) {
     let cancelled = false
     let socket: WebSocket | null = null
     let view: GameView | null = null
+    let call: Guava.Call | null = null
 
     newGame(scenario)
-      .then(({ game_id, state }) => {
+      .then(({ game_id, state, webrtc_code }) => {
         if (cancelled) return
         const ws = new WebSocket(`/ws/games/${game_id}`)
         socket = ws
@@ -38,6 +40,20 @@ export default function Play({ scenario }: Props) {
           if (message.type !== 'state') return
           view?.render(message)
           setInConversation(message.in_conversation)
+
+          // The voice call follows the game's state: the game decides when a conversation
+          // starts and ends, and the browser only places or drops the call.
+          if (message.in_conversation && !call) {
+            const started = new Guava.Call({ webrtcCode: webrtc_code, customPayload: { game_id } })
+            call = started
+            started.start().catch(() => {
+              setError(`Call failed: ${started.error?.message ?? 'unknown error'}. Press Esc to end the conversation.`)
+            })
+          } else if (!message.in_conversation && call) {
+            call.hangup()
+            call = null
+            setError('')
+          }
         }
       })
       .catch(() => setError('Could not start a game. Is the backend running?'))
@@ -45,6 +61,7 @@ export default function Play({ scenario }: Props) {
     return () => {
       cancelled = true
       socket?.close()
+      call?.hangup()
       view?.destroy()
     }
   }, [scenario])

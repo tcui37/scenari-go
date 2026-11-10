@@ -1,7 +1,9 @@
 """A barebones 2D grid game: the student (player) moves around a grid with the conversation partner (agent)."""
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import NamedTuple
 
-from game.scenario import Scenario
+from game.scenario import ChecklistItem, Scenario
 
 EMPTY = 0  # tile values; walls and items can be added later
 
@@ -17,7 +19,23 @@ class Position(NamedTuple):
     col: int
 
 
+@dataclass
+class Objective:
+    """One objective and its checklist: what the agent needs to run one part of the conversation."""
+    text: str
+    checklist: list[ChecklistItem]
+
+
+@dataclass
+class CallResult:
+    """How a conversation ended. The transcript will join this later."""
+    termination_reason: str  # "user-hangup" | "bot-hangup" | "bot-failure"
+
+
 class Game:
+    """The player drives the game with keys. During a conversation the game hands control to the
+    agent, which drives it through current_objective / complete_objective / end_conversation."""
+
     def __init__(
         self,
         scenario: Scenario,
@@ -30,6 +48,9 @@ class Game:
         self.player_position = player_position  # the student
         self.agent_position = agent_position  # the conversation partner
         self.in_conversation = False  # while True, nobody moves
+        self.objective_index = 0  # the objective being worked on; len(objectives) once all are done
+        self.call_results: list[CallResult] = []
+        self.update_socket: Callable[[], None] | None = None  # sends the state to the browser; set by main.py
 
     @classmethod
     def from_scenario(cls, scenario: Scenario, rows: int = 8, cols: int = 10) -> "Game":
@@ -61,9 +82,25 @@ class Game:
         if not self.in_conversation and self._next_to_agent():
             self.in_conversation = True  # ignored when the agent is out of reach
 
-    def end_conversation(self) -> None:
-        """The student hung up (Esc) or the agent finished the conversation."""
+    def end_conversation(self, result: CallResult | None = None) -> None:
+        """The student hung up (Esc) or the agent's call ended; the agent passes how it went."""
         self.in_conversation = False
+        if result:
+            self.call_results.append(result)
+            # The agent ended it, with no key press to answer, so tell the browser from here.
+            if self.update_socket:
+                self.update_socket()
+
+    def current_objective(self) -> Objective | None:
+        """The objective to work on now, or None once every objective is done."""
+        index = self.objective_index
+        if index >= len(self.scenario.objectives):
+            return None
+        return Objective(self.scenario.objectives[index], self.scenario.checklists[index])
+
+    def complete_objective(self) -> None:
+        """The current objective is done; move on to the next one."""
+        self.objective_index += 1
 
     def _next_to_agent(self) -> bool:
         # Directly up, down, left or right of the agent (no diagonals).

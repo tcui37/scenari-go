@@ -25,6 +25,7 @@ export function scoreScenario(req: { scenario: Scenario; transcript: TranscriptL
 }
 
 // Starts a new, isolated game for `scenario`. Play it over the WebSocket at /ws/games/{game_id}.
-export function newGame(scenario: Scenario): Promise<{ game_id: string; state: GameState }> {
+// `webrtc_code` is the code the voice agent listens on; the browser calls it during a conversation.
+export function newGame(scenario: Scenario): Promise<{ game_id: string; state: GameState; webrtc_code: string }> {
   return post('/api/games', scenario)
 }

@@ -1,3 +1,8 @@
+import asyncio
+import os
+import threading
+from collections.abc import Callable
+from contextlib import asynccontextmanager
 from uuid import uuid4
 
 from dotenv import load_dotenv
@@ -9,14 +14,24 @@ from game.scenario import Scenario
 from llm.gemini import gemini_generate
 from llm.prompts import checklists_prompt, score_prompt
 from schemas import GeneratedChecklistsModel, ScenarioModel, ScoreRequestModel, ScoreResponseModel
+from voice.agent import create_agent
 
-load_dotenv()  # loads GEMINI_API_KEY from backend/.env
+load_dotenv()  # loads GEMINI_API_KEY, GUAVA_API_KEY and GUAVA_WEBRTC_CODE from backend/.env
 
 # --- Games: each game is isolated by its ID; it lives in memory while its socket is connected ---
 games: dict[str, Game] = {}
 
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """On startup, one voice agent starts answering calls for every game."""
+    agent = create_agent(games.get)
+    # listen_webrtc blocks for as long as it listens, so it gets its own thread.
+    threading.Thread(target=agent.listen_webrtc, args=(os.environ["GUAVA_WEBRTC_CODE"],), daemon=True).start()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 def ask_gemini(prompt: str, schema: type[BaseModel]) -> BaseModel:
     """Call Gemini; any failure becomes a 502 for the frontend."""
@@ -53,7 +68,19 @@ def score_scenario(req: ScoreRequestModel) -> ScoreResponseModel:
 def create_game(scenario: ScenarioModel) -> dict:
     game_id = uuid4().hex
     games[game_id] = Game.from_scenario(Scenario.from_model(scenario))
-    return {"game_id": game_id, "state": games[game_id].state()}
+    # The browser places the voice call, so it needs the code the agent listens on.
+    return {"game_id": game_id, "state": games[game_id].state(), "webrtc_code": os.environ["GUAVA_WEBRTC_CODE"]}
+
+
+def socket_updater(websocket: WebSocket, game: Game) -> Callable[[], None]:
+    """Returns a function that sends `game`'s state to its browser. Safe to call from any thread:
+    the voice agent calls it from its own, so the send is handed to the socket's event loop."""
+    loop = asyncio.get_running_loop()
+
+    def update_socket() -> None:
+        asyncio.run_coroutine_threadsafe(websocket.send_json({"type": "state", **game.state()}), loop)
+
+    return update_socket
 
 
 @app.websocket("/ws/games/{game_id}")
@@ -66,12 +93,12 @@ async def play_game(websocket: WebSocket, game_id: str):
         await websocket.close(code=4404, reason="Unknown game")
         return
 
+    game.update_socket = socket_updater(websocket, game)
     try:
-        await websocket.send_json({"type": "state", **game.state()})
+        game.update_socket()
         while True:
-            key = await websocket.receive_text()
-            game.handle_key(key)
-            await websocket.send_json({"type": "state", **game.state()})
+            game.handle_key(await websocket.receive_text())
+            game.update_socket()
     except WebSocketDisconnect:
         pass  # the browser left: "Finish scenario", Back, closing the tab, or a dropped connection
     finally:
