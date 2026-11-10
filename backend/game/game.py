@@ -1,7 +1,7 @@
 """A barebones 2D grid game: the student (player) moves around a grid with the conversation partner (agent)."""
 from typing import NamedTuple
 
-from schemas import Scenario
+from game.scenario import Scenario
 
 EMPTY = 0  # tile values; walls and items can be added later
 

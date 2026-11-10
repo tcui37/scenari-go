@@ -5,9 +5,10 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from game.game import Game
+from game.scenario import Scenario
 from llm.gemini import gemini_generate
 from llm.prompts import checklists_prompt, score_prompt
-from schemas import GeneratedChecklists, Scenario, ScoreRequest, ScoreResponse
+from schemas import GeneratedChecklistsModel, ScenarioModel, ScoreRequestModel, ScoreResponseModel
 
 load_dotenv()  # loads GEMINI_API_KEY from backend/.env
 
@@ -29,9 +30,9 @@ def ask_gemini(prompt: str, schema: type[BaseModel]) -> BaseModel:
 # Gemini call doesn't stall other requests.
 # TODO: why?
 @app.post("/api/checklists")
-def generate_checklists(scenario: Scenario) -> Scenario:
+def generate_checklists(scenario: ScenarioModel) -> ScenarioModel:
     """Returns the scenario with one generated checklist per objective."""
-    result = ask_gemini(checklists_prompt(scenario), GeneratedChecklists)
+    result = ask_gemini(checklists_prompt(Scenario.from_model(scenario)), GeneratedChecklistsModel)
     if len(result.checklists) != len(scenario.objectives):
         # Debug: show what Gemini returned in the `fastapi dev` terminal.
         print("Scenario sent:")
@@ -44,14 +45,14 @@ def generate_checklists(scenario: Scenario) -> Scenario:
 
 
 @app.post("/api/score")
-def score_scenario(req: ScoreRequest) -> ScoreResponse:
-    return ask_gemini(score_prompt(req), ScoreResponse)
+def score_scenario(req: ScoreRequestModel) -> ScoreResponseModel:
+    return ask_gemini(score_prompt(Scenario.from_model(req.scenario), req.transcript), ScoreResponseModel)
 
 
 @app.post("/api/games")
-def create_game(scenario: Scenario) -> dict:
+def create_game(scenario: ScenarioModel) -> dict:
     game_id = uuid4().hex
-    games[game_id] = Game.from_scenario(scenario)
+    games[game_id] = Game.from_scenario(Scenario.from_model(scenario))
     return {"game_id": game_id, "state": games[game_id].state()}
 
 

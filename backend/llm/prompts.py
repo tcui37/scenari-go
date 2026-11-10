@@ -1,23 +1,13 @@
 """Prompt builders for Gemini. Response shapes come from schemas.py (sent as response_schema)."""
-from schemas import ScoreRequest, Scenario
-
-
-def _describe(scenario: Scenario) -> str:
-    p = scenario.partner
-    objectives = "\n".join(f"- {o}" for o in scenario.objectives)
-    return (
-        f"Conversation partner: {p.name} — {p.bio}\n"
-        f"Language: {p.language}, student level: CEFR {p.level}\n"
-        f"Setting: {scenario.setting}\n"
-        f"Objectives the student must achieve:\n{objectives}"
-    )
+from game.scenario import Scenario
+from schemas import TranscriptLineModel
 
 
 def checklists_prompt(scenario: Scenario) -> str:
     return f"""You are designing a role-play for a language learner.
 The student talks to the conversation partner below, played by an AI.
 
-{_describe(scenario)}
+{scenario.get_description()}
 
 For EACH objective, write a checklist of 1-2 prompts that guide the partner through
 that part of the conversation, in order. Each item is either:
@@ -30,14 +20,14 @@ Each objective is one unit, even if it asks for several things (e.g. "order a dr
 gets a single checklist covering both). Never split an objective into multiple checklists."""
 
 
-def score_prompt(req: ScoreRequest) -> str:
-    transcript = "\n".join(f"{line.speaker}: {line.text}" for line in req.transcript)
+def score_prompt(scenario: Scenario, transcript: list[TranscriptLineModel]) -> str:
+    lines = "\n".join(f"{line.speaker}: {line.text}" for line in transcript)
     return f"""You are grading a language learner's role-play conversation.
 
-{_describe(req.scenario)}
+{scenario.get_description()}
 
 Transcript:
-{transcript or "(empty: no conversation took place)"}
+{lines or "(empty: no conversation took place)"}
 
 Judge each objective only from the transcript. If the transcript is empty, mark every
 objective as not met, give overall_score 0, and say no conversation was recorded.
