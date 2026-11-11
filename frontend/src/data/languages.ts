@@ -5,12 +5,14 @@
 export type Level = { value: string; label: string; description: string }
 export type Language = { value: string; label: string; levels: Level[] }
 
+// Descriptions paraphrase the Council of Europe's CEFR global scale:
+// https://www.coe.int/en/web/common-european-framework-reference-languages/table-1-cefr-3.3-common-reference-levels-global-scale
 const CEFR_LEVELS: Level[] = [
   { value: 'A1', label: 'A1 · Beginner', description: 'Basic phrases about yourself and everyday needs.' },
   { value: 'A2', label: 'A2 · Elementary', description: 'Simple exchanges on familiar, routine topics.' },
   { value: 'B1', label: 'B1 · Intermediate', description: 'Handles most travel situations and familiar topics.' },
-  { value: 'B2', label: 'B2 · Upper intermediate', description: 'Talks fluently and spontaneously with native speakers.' },
-  { value: 'C1', label: 'C1 · Advanced', description: 'Expresses ideas fluently, flexibly and precisely.' },
+  { value: 'B2', label: 'B2 · Upper intermediate', description: 'Interacts with some fluency and spontaneity with native speakers.' },
+  { value: 'C1', label: 'C1 · Advanced', description: 'Expresses ideas fluently and spontaneously, using language flexibly.' },
   { value: 'C2', label: 'C2 · Proficient', description: 'Understands virtually everything with ease.' },
 ]
 
