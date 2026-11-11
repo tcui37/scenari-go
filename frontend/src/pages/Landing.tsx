@@ -5,7 +5,7 @@ export default function Landing() {
     <section className="hero">
       <h1>Conversations your students can play through</h1>
       <p>Create a dialogue scenario with a character, a setting and goals. Students practice by talking it through.</p>
-      <Link to="/create" className="btn btn-primary btn-large">
+      <Link to="/create" className="btn btn-primary btn-large" data-sound="enter">
         Get started
       </Link>
     </section>

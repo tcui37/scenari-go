@@ -80,13 +80,6 @@ def create_agent(game_id_to_game: Callable[[str], Game | None]) -> guava.Agent:
 
 # --- Helpers ---
 
-def _game_id(call_info: guava.CallInfo) -> str:
-    # TODO: revisit. The browser sends the game ID with the call (customPayload).
-    if call_info.call_type != "webrtc":
-        return ""
-    return str(call_info.custom_payload.get("game_id"))
-
-
 def _start_objective(call: guava.Call, game: Game, index: int) -> None:
     """Give the agent the objective at `index` as a task, or wrap up when there's none."""
     objectives, checklists = game.scenario.objectives, game.scenario.checklists

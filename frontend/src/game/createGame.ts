@@ -2,6 +2,7 @@
 // View only: the backend owns the game state and decides what keys do. This draws
 // whatever state it is given and forwards every key press, unchanged, through `onKey`.
 import { Application, Assets, Graphics, Sprite, type Texture } from 'pixi.js'
+import { playSound } from '../sound.ts'
 import type { Direction, GameState, Position } from './types.ts'
 
 const TILE = 64 // px
@@ -59,6 +60,8 @@ export function createGame(
   }
 
   function render(state: GameState) {
+    const [row, col] = latest.player_position
+    if (state.player_position[0] !== row || state.player_position[1] !== col) playSound('step') // moved, not just turned
     latest = state
     if (!player || !agent) return
     place(player, state.player_position)

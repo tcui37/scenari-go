@@ -14,9 +14,6 @@
   --color-red: #ff4b4b;          /* Cardinal */
   --color-red-shadow: #ea2b2b;
   --color-red-light: #ffdfe0;
-  --color-yellow: #ffc800;       /* Bee */
-  --color-orange: #ff9600;       /* Fox */
-  --color-purple: #ce82ff;       /* Beetle */
 
   /* ---- Neutrals ---- */
   --color-gray-900: #4b4b4b;     /* Eel */
@@ -31,10 +28,8 @@
   --color-primary-shadow: var(--color-green-shadow);
   --color-primary-light: var(--color-green-light);
   --color-accent: var(--color-blue);
-  --color-accent-shadow: var(--color-blue-shadow);
   --color-accent-light: var(--color-blue-light);
   --color-danger: var(--color-red);
-  --color-danger-shadow: var(--color-red-shadow);
   --color-danger-light: var(--color-red-light);
 
   --color-text: var(--color-gray-900);
@@ -52,7 +47,6 @@
   --color-game-tile: var(--color-green-light);
   --color-game-tile-alt: var(--color-white);
   --color-game-grid-line: var(--color-gray-200);
-  --color-game-agent: var(--color-purple); /* tint for the conversation partner sprite */
 
   /* ---- Typography ---- */
   /* Duolingo uses proprietary Feather Bold / DIN Next Rounded; Nunito is the open substitute. */

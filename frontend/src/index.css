@@ -124,18 +124,6 @@ p { margin: 0 0 var(--space-3); }
   --btn-edge: var(--color-primary-shadow);
 }
 
-.btn-accent {
-  --btn-bg: var(--color-accent);
-  --btn-fg: var(--color-text-on-color);
-  --btn-edge: var(--color-accent-shadow);
-}
-
-.btn-danger {
-  --btn-bg: var(--color-danger);
-  --btn-fg: var(--color-text-on-color);
-  --btn-edge: var(--color-danger-shadow);
-}
-
 .btn-large {
   padding: var(--space-4) var(--space-6);
   font-size: var(--font-size-lg);
