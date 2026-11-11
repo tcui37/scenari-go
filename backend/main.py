@@ -90,7 +90,7 @@ async def play_game(websocket: WebSocket):
         # No game exists until the scenario arrives, so a socket that closes early costs nothing.
         scenario = ScenarioModel.model_validate_json(await websocket.receive_text())
         game = games[game_id] = Game.from_scenario(Scenario.from_model(scenario))
-        game.set_socket_emission_fn(create_socket_updater(websocket, game))
+        game.set_socket_emission_fn(create_socket_updater(websocket))
         # The browser places the voice call: it dials the agent's code and names this game.
         await websocket.send_json({"type": "game_created", "game_id": game_id, "webrtc_code": GUAVA_WEBRTC_CODE})
         game.update_socket()

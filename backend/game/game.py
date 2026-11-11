@@ -62,7 +62,7 @@ class Game:
         self.call_connected = False  # True once the voice call picks up, until the conversation ends
         self.objective_index = 0  # the objective being worked on; len(objectives) once all are done
         self.call_summary = CallSummary()  # what was said in this game's calls
-        self._socket_updater: Callable[[], None] | None = None  # sends the state to the browser; see set_socket_emission_fn
+        self._socket_updater: Callable[[dict], None] | None = None  # sends a message to the browser; see set_socket_emission_fn
 
     @classmethod
     def from_scenario(cls, scenario: Scenario, rows: int = 8, cols: int = 10) -> "Game":
@@ -97,14 +97,14 @@ class Game:
             return f"Objective: {self.get_current_objective().text}"
         return "All done!"  # every objective done, in or out of the call
 
-    def set_socket_emission_fn(self, socket_updater: Callable[[], None]) -> None:
-        """How to send this game's state to its browser. main.py sets it when the socket connects."""
+    def set_socket_emission_fn(self, socket_updater: Callable[[dict], None]) -> None:
+        """How to send a message to this game's browser. main.py sets it when the socket connects."""
         self._socket_updater = socket_updater
 
     def update_socket(self) -> None:
         """Send the current state to the browser, if one is connected."""
         if self._socket_updater:
-            self._socket_updater()
+            self._socket_updater({"type": "state", **self.state()})
 
     # --- The player: keys from the browser ---
 
