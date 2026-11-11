@@ -4,7 +4,7 @@ import CreateScenario from './pages/CreateScenario.tsx'
 import Landing from './pages/Landing.tsx'
 import ScenarioInfo from './pages/ScenarioInfo.tsx'
 import Summary from './pages/Summary.tsx'
-import { EMPTY_SCENARIO } from './scenario/scenario.ts'
+import { EMPTY_SCENARIO, withoutChecklists } from './scenario/scenario.ts'
 import type { GameSummary, Scenario } from './scenario/types.ts'
 
 // PixiJS is large, so the game page loads only when someone plays.
@@ -18,9 +18,8 @@ export default function App() {
 
   // Saving the form: keep generated checklists only if nothing the teacher entered changed.
   function saveScenario(next: Scenario) {
-    const withoutChecklists = (s: Scenario) => JSON.stringify({ ...s, checklists: [] })
-    const changed = withoutChecklists(next) !== withoutChecklists(scenario)
-    setScenario({ ...next, checklists: changed ? [] : scenario.checklists })
+    const typed = (s: Scenario) => JSON.stringify(withoutChecklists(s))
+    setScenario(typed(next) === typed(scenario) ? next : withoutChecklists(next))
   }
 
   function reset() {

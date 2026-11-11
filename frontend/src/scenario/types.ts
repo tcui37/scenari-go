@@ -10,9 +10,12 @@ export type ConversationPartner = {
 export type Scenario = {
   partner: ConversationPartner
   setting: string // < 200 characters
-  objectives: string[]
-  // Parallel to objectives: checklists[i] belongs to objectives[i]. Empty = not generated yet.
-  checklists: ChecklistItem[][]
+  objectives: Objective[]
+}
+
+export type Objective = {
+  text: string
+  checklist: ChecklistItem[] // empty = not generated yet
 }
 
 // One prompt for the voice agent. Maps to a Guava task checklist item:

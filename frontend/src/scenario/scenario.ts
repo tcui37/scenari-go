@@ -3,8 +3,7 @@ import type { Scenario } from './types.ts'
 export const EMPTY_SCENARIO: Scenario = {
   partner: { name: '', bio: '', language: '', level: '' },
   setting: '',
-  objectives: [''],
-  checklists: [],
+  objectives: [{ text: '', checklist: [] }],
 }
 
 // A scenario is ready to play once every field is filled in.
@@ -16,10 +15,15 @@ export function isComplete(scenario: Scenario): boolean {
     partner.language !== '' &&
     partner.level !== '' &&
     setting.trim() !== '' &&
-    objectives.some((objective) => objective.trim() !== '')
+    objectives.some((objective) => objective.text.trim() !== '')
   )
 }
 
 export function hasChecklists(scenario: Scenario): boolean {
-  return scenario.checklists.length > 0
+  return scenario.objectives.some((objective) => objective.checklist.length > 0)
+}
+
+// The same scenario with every checklist cleared, i.e. only what the teacher typed.
+export function withoutChecklists(scenario: Scenario): Scenario {
+  return { ...scenario, objectives: scenario.objectives.map((objective) => ({ ...objective, checklist: [] })) }
 }

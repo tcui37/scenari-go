@@ -4,7 +4,7 @@ import Select from 'react-select'
 import LevelDialog from '../components/LevelDialog.tsx'
 import { findLanguage, LANGUAGES, type Language } from '../data/languages.ts'
 import { isComplete } from '../scenario/scenario.ts'
-import type { ConversationPartner, Scenario } from '../scenario/types.ts'
+import type { ConversationPartner, Objective, Scenario } from '../scenario/types.ts'
 
 const BIO_MAX = 100
 const SETTING_MAX = 200
@@ -51,13 +51,17 @@ export default function CreateScenario({ scenario, onSave }: Props) {
     setLevelDialogOpen(false)
   }
 
-  function setObjectives(next: string[]) {
+  function setObjectives(next: Objective[]) {
     setDraft({ ...draft, objectives: next })
+  }
+
+  function setObjectiveText(index: number, text: string) {
+    setObjectives(objectives.map((o, i) => (i === index ? { ...o, text } : o)))
   }
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    onSave({ ...draft, objectives: objectives.map((o) => o.trim()).filter(Boolean) })
+    onSave({ ...draft, objectives: objectives.map((o) => ({ ...o, text: o.text.trim() })).filter((o) => o.text) })
     navigate('/scenario')
   }
 
@@ -150,16 +154,12 @@ export default function CreateScenario({ scenario, onSave }: Props) {
               <div key={index} className="row">
                 <input
                   className="input"
-                  value={objective}
+                  value={objective.text}
                   placeholder={index === 0 ? 'Order a drink and a pastry...' : 'Another objective...'}
                   aria-label={`Objective ${index + 1}`}
-                  onChange={(e) => setObjectives(objectives.map((o, i) => (i === index ? e.target.value : o)))}
+                  onChange={(e) => setObjectiveText(index, e.target.value)}
                   // Only the first objective has a real suggestion; "Another objective..." isn't one.
-                  onKeyDown={
-                    index === 0
-                      ? fillSuggestionOnTab((value) => setObjectives(objectives.map((o, i) => (i === 0 ? value : o))))
-                      : undefined
-                  }
+                  onKeyDown={index === 0 ? fillSuggestionOnTab((value) => setObjectiveText(0, value)) : undefined}
                 />
                 {objectives.length > 1 && (
                   <button
@@ -173,7 +173,7 @@ export default function CreateScenario({ scenario, onSave }: Props) {
               </div>
             ))}
           </div>
-          <button type="button" className="btn-link align-start" onClick={() => setObjectives([...objectives, ''])}>
+          <button type="button" className="btn-link align-start" onClick={() => setObjectives([...objectives, { text: '', checklist: [] }])}>
             + Add objective
           </button>
         </div>

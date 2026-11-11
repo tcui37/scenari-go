@@ -14,7 +14,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return response.json()
 }
 
-// Returns the same scenario with `checklists` filled in, one per objective.
+// Returns the same scenario with each objective's `checklist` filled in.
 export function generateChecklists(scenario: Scenario): Promise<Scenario> {
   return post<Scenario>('/api/checklists', scenario)
 }

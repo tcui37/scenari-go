@@ -50,14 +50,12 @@ class Scenario:
     @classmethod
     def from_model(cls, model: ScenarioModel) -> "Scenario":
         p = model.partner
-        # The API sends parallel lists; pair them up here, once. No checklists yet = all empty.
-        checklists = model.checklists or [[] for _ in model.objectives]
         return cls(
             partner=Partner(name=p.name, bio=p.bio, language=Language(p.language), level=Level(p.level)),
             setting=model.setting,
             objectives=[
-                Objective(text, [ChecklistItem(kind=i.kind, text=i.text) for i in checklist])
-                for text, checklist in zip(model.objectives, checklists, strict=True)
+                Objective(o.text, [ChecklistItem(kind=i.kind, text=i.text) for i in o.checklist])
+                for o in model.objectives
             ],
         )
 

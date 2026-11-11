@@ -39,15 +39,15 @@ export default function ScenarioInfo({ scenario, setScenario }: Props) {
   function updateChecklist(index: number, checklist: ChecklistItem[]) {
     setScenario((current) => ({
       ...current,
-      checklists: current.checklists.map((c, i) => (i === index ? checklist : c)),
+      objectives: current.objectives.map((o, i) => (i === index ? { ...o, checklist } : o)),
     }))
   }
 
   async function regenerate(index: number) {
     setRegenerating(index)
     try {
-      const single = await generateChecklists({ ...scenario, objectives: [scenario.objectives[index]], checklists: [] })
-      updateChecklist(index, single.checklists[0])
+      const single = await generateChecklists({ ...scenario, objectives: [{ ...scenario.objectives[index], checklist: [] }] })
+      updateChecklist(index, single.objectives[0].checklist)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -86,8 +86,8 @@ export default function ScenarioInfo({ scenario, setScenario }: Props) {
           <ChecklistEditor
             key={index}
             index={index}
-            objective={objective}
-            checklist={scenario.checklists[index]}
+            objective={objective.text}
+            checklist={objective.checklist}
             onChange={(checklist) => updateChecklist(index, checklist)}
             onRegenerate={() => regenerate(index)}
             regenerating={regenerating === index}

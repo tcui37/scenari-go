@@ -23,12 +23,15 @@ class ChecklistItemModel(BaseModel):
     text: str
 
 
+class ObjectiveModel(BaseModel):
+    text: str = Field(min_length=1)
+    checklist: list[ChecklistItemModel] = []  # empty = not generated yet
+
+
 class ScenarioModel(BaseModel):
     partner: ConversationPartnerModel
     setting: str = Field(max_length=200)
-    objectives: list[str] = Field(min_length=1)
-    # Parallel to objectives: checklists[i] belongs to objectives[i]. Empty = not generated yet.
-    checklists: list[list[ChecklistItemModel]] = []
+    objectives: list[ObjectiveModel] = Field(min_length=1)
 
 
 # --- What Gemini produces: checklists only (it never repeats the objectives) ---

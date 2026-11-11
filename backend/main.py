@@ -58,7 +58,8 @@ async def generate_checklists(scenario: ScenarioModel) -> ScenarioModel:
 
     if len(result.checklists) != len(scenario.objectives):
         raise HTTPException(502, "Gemini skipped an objective. Please try again.")
-    scenario.checklists = result.checklists
+    for objective, checklist in zip(scenario.objectives, result.checklists):  # Gemini answers in objective order
+        objective.checklist = checklist
     return scenario
 
 
