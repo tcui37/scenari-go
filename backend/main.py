@@ -8,33 +8,22 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from game.game import Game
+from game.games import games
 from game.scenario import Scenario
 from llm.gemini import gemini_generate_with_schema
 from llm.prompts import checklists_prompt, score_prompt
 from schemas import GameSummaryModel, GeneratedChecklistsModel, ScenarioModel, ScoreResponseModel, TranscriptLineModel
 from sockets.socket import create_socket_updater
-from voice.agent import create_agent
+from voice.agent import agent
 
 load_dotenv()  # loads GEMINI_API_KEY, GUAVA_API_KEY and GUAVA_WEBRTC_CODE from backend/.env
 
 GUAVA_WEBRTC_CODE = os.environ["GUAVA_WEBRTC_CODE"]  # the one code the shared voice agent listens on
 
-# Games with an open socket, by ID. One socket is one game: it is registered when its socket
-# sends the scenario and removed when the socket closes. The voice agent finds a call's game here.
-games: dict[str, Game] = {}
-
-
-def get_game_from_id(game_id: str) -> Game:
-    """The live game with this ID. Raises ValueError if there's none (bad ID, or its socket closed)."""
-    if game_id not in games:
-        raise ValueError(f"No game with id {game_id!r}")
-    return games[game_id]
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """On startup, one voice agent starts answering calls for every game."""
-    agent = create_agent(get_game_from_id)
+    """On startup, the voice agent starts answering calls for every game."""
     # setup listener on a separate thread, as listener blocks and handles incoming calls until the process exits
     threading.Thread(target=agent.listen_webrtc, args=(GUAVA_WEBRTC_CODE,), daemon=True).start()
     yield
