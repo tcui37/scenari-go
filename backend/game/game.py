@@ -1,15 +1,12 @@
 """A barebones 2D grid game: the student (player) moves around a grid with the conversation partner (agent)."""
 from collections.abc import Callable
-from dataclasses import dataclass
 from enum import Enum
 from typing import NamedTuple
 
 from game.call_summary import CallSummary
-from game.scenario import ChecklistItem, Scenario
+from game.scenario import Objective, Scenario
 
 EMPTY = 0  # tile values; walls and items can be added later
-
-ALL_DONE = "All done!"  # the subtext once every objective is done
 
 
 class Direction(Enum):
@@ -42,16 +39,9 @@ class Position(NamedTuple):
     col: int
 
 
-@dataclass
-class Objective:
-    """One objective and its checklist: what the agent needs to run one part of the conversation."""
-    text: str
-    checklist: list[ChecklistItem]
-
-
 class Game:
     """The player drives the game with keys. During a conversation the game hands control to the
-    agent, which drives it through current_objective / complete_objective / end_conversation."""
+    agent, which drives it through is_complete / get_current_objective / complete_objective / end_conversation."""
 
     # --- Creating a game ---
 
@@ -69,9 +59,9 @@ class Game:
         self.player_facing = Direction.DOWN  # the way the player looks; set by the arrow keys
         self.agent_facing = Direction.LEFT
         self.in_conversation = False  # while True, nobody moves
+        self.call_connected = False  # True once the voice call picks up, until the conversation ends
         self.objective_index = 0  # the objective being worked on; len(objectives) once all are done
         self.call_summary = CallSummary()  # what was said in this game's calls
-        self.subtext = self._walk_hint()  # the line shown under "Play"
         self._socket_updater: Callable[[], None] | None = None  # sends the state to the browser; see set_socket_emission_fn
 
     @classmethod
@@ -94,8 +84,18 @@ class Game:
             "player_facing": self.player_facing.value,  # .value: a plain Enum isn't JSON
             "agent_facing": self.agent_facing.value,
             "in_conversation": self.in_conversation,
-            "subtext": self.subtext,
+            "subtext": self.get_subtext(),
         }
+
+    def get_subtext(self) -> str:
+        """The line shown under "Play", worked out from the state, so nothing has to keep it in sync."""
+        if not self.in_conversation and not self.is_complete():  # walking over
+            return f"Use the arrow keys to move. Press Enter next to {self.scenario.partner.name} to talk."
+        if self.in_conversation and not self.call_connected:  # Enter pressed, call connecting
+            return f"Getting {self.scenario.partner.name}'s attention..."
+        if not self.is_complete():  # talking
+            return f"Objective: {self.get_current_objective().text}"
+        return "All done!"  # every objective done, in or out of the call
 
     def set_socket_emission_fn(self, socket_updater: Callable[[], None]) -> None:
         """How to send this game's state to its browser. main.py sets it when the socket connects."""
@@ -134,14 +134,15 @@ class Game:
         agent_adjacent = row_gap + col_gap == 1
         if not self.in_conversation and agent_adjacent:
             self.in_conversation = True  # ignored when the agent is out of reach
-            self.subtext = f"Getting {self.scenario.partner.name}'s attention..."  # until the call connects
 
     # --- Movement rules ---
 
     def _can_move_to(self, position: Position) -> bool:
-        # Nobody moves while talking (agent movement, once added, should use this too).
-        # In-bounds is checked before collision-free: `and` short-circuits, so the grid
-        # is never indexed out of range.
+        """True if something can step onto `position`. It must be:
+        - outside a conversation: nobody moves while talking (agent movement should use this too)
+        - in bounds: checked first, so the collision check never indexes past the grid
+        - collision-free: an empty tile that the agent isn't on
+        """
         return (
             not self.in_conversation
             and self._position_in_bounds(position)
@@ -157,36 +158,30 @@ class Game:
 
     # --- The conversation: what the voice agent uses during a call ---
 
-    def current_objective(self) -> Objective | None:
-        """The objective to work on now, or None once every objective is done."""
-        index = self.objective_index
-        if index >= len(self.scenario.objectives):
-            return None
-        return Objective(self.scenario.objectives[index], self.scenario.checklists[index])
+    def is_complete(self) -> bool:
+        """True once every objective is done."""
+        return self.objective_index >= len(self.scenario.objectives)
 
-    def start_call(self) -> None:
+    def get_current_objective(self) -> Objective:
+        """The objective to work on now. Check is_complete first: there is none once all are done."""
+        assert not self.is_complete(), "get_current_objective called after every objective is done"
+        return self.scenario.objectives[self.objective_index]
+
+    def on_start_call(self) -> None:
         """The voice call connected: show the objective at hand."""
-        self._show_objective()
+        self.call_connected = True
         self.update_socket()  # from the agent's thread, with no key press to answer
 
     def complete_objective(self) -> None:
         """The current objective is done; move on to the next one, and show it."""
         self.objective_index += 1
-        self._show_objective()
         self.update_socket()  # from the agent's thread, with no key press to answer
 
     def end_conversation(self, by_agent: bool = False) -> None:
         """The student hung up (Esc), or the agent's call ended (by_agent)."""
         self.in_conversation = False
-        self.subtext = ALL_DONE if self.current_objective() is None else self._walk_hint()
+        self.call_connected = False
         if by_agent:
             # The agent ended it, with no key press to answer, so tell the browser from here.
             self.update_socket()
-
-    def _show_objective(self) -> None:
-        objective = self.current_objective()
-        self.subtext = f"Objective: {objective.text}" if objective else ALL_DONE
-
-    def _walk_hint(self) -> str:
-        return f"Use the arrow keys to move. Press Enter next to {self.scenario.partner.name} to talk."
 

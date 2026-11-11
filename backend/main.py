@@ -24,10 +24,17 @@ GUAVA_WEBRTC_CODE = os.environ["GUAVA_WEBRTC_CODE"]  # the one code the shared v
 games: dict[str, Game] = {}
 
 
+def get_game_from_id(game_id: str) -> Game:
+    """The live game with this ID. Raises ValueError if there's none (bad ID, or its socket closed)."""
+    if game_id not in games:
+        raise ValueError(f"No game with id {game_id!r}")
+    return games[game_id]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """On startup, one voice agent starts answering calls for every game."""
-    agent = create_agent(games.get)
+    agent = create_agent(get_game_from_id)
     # setup listener on a separate thread, as listener blocks and handles incoming calls until the process exits
     threading.Thread(target=agent.listen_webrtc, args=(GUAVA_WEBRTC_CODE,), daemon=True).start()
     yield

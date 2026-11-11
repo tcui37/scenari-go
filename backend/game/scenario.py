@@ -35,26 +35,36 @@ class ChecklistItem:
 
 
 @dataclass
+class Objective:
+    """One objective and its checklist: what the agent needs to run one part of the conversation."""
+    text: str
+    checklist: list[ChecklistItem]  # empty until generated
+
+
+@dataclass
 class Scenario:
     partner: Partner
     setting: str
-    objectives: list[str]
-    checklists: list[list[ChecklistItem]]  # checklists[i] belongs to objectives[i]
+    objectives: list[Objective]
 
     @classmethod
     def from_model(cls, model: ScenarioModel) -> "Scenario":
         p = model.partner
+        # The API sends parallel lists; pair them up here, once. No checklists yet = all empty.
+        checklists = model.checklists or [[] for _ in model.objectives]
         return cls(
             partner=Partner(name=p.name, bio=p.bio, language=Language(p.language), level=Level(p.level)),
             setting=model.setting,
-            objectives=list(model.objectives),
-            checklists=[[ChecklistItem(kind=i.kind, text=i.text) for i in checklist] for checklist in model.checklists],
+            objectives=[
+                Objective(text, [ChecklistItem(kind=i.kind, text=i.text) for i in checklist])
+                for text, checklist in zip(model.objectives, checklists, strict=True)
+            ],
         )
 
     def get_description(self) -> str:
         """The partner, setting and objectives, as plain text for prompts."""
         p = self.partner
-        objectives = "\n".join(f"- {o}" for o in self.objectives)
+        objectives = "\n".join(f"- {o.text}" for o in self.objectives)
         return (
             f"Conversation partner: {p.name} — {p.bio}\n"
             f"Language: {p.language}, student level: CEFR {p.level}\n"
