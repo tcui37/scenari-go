@@ -40,6 +40,12 @@ class TestAgentHandlers(unittest.TestCase):
         self.assertTrue(self.game.call_connected)
         self.assertEqual("Objective: Order a drink", self.game.get_subtext())
 
+    def test_call_start_with_earlier_transcript(self):
+        self.game.call_summary.record_speech("partner", "Hi! What can I get you?")  # from an earlier call
+        self.game.in_conversation = True
+        on_call_start(mock_call())
+        self.assertTrue(self.game.call_connected)
+
     def test_task_complete_advances_objectives(self):
         on_task_complete(mock_call(), "objective_0")
         self.assertEqual(1, self.game.objective_index)

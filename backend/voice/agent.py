@@ -47,6 +47,12 @@ def on_call_start(call: guava.Call) -> None:
         speech_speed=SPEECH_SPEED_BY_LEVEL[partner.level],
     )
     call.set_language_mode(primary=partner.language)
+    transcript = game.call_summary.transcript
+    if transcript:  # the student stepped away mid-conversation and came back
+        call.add_info(
+            "your earlier conversation with this student; they stepped away and came back, so pick up where you left off",
+            [f"{'You' if line.speaker == 'partner' else 'Student'}: {line.text}" for line in transcript],
+        )
     game.on_start_call()
     _start_next_task(call, game)  # each call is fresh: start wherever the student is
 
