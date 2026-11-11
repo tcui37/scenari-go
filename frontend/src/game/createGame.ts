@@ -1,11 +1,16 @@
 // Draws the grid game with PixiJS (https://pixijs.com/8.x/guides/getting-started/quick-start).
 // View only: the backend owns the game state and decides what keys do. This draws
 // whatever state it is given and forwards every key press, unchanged, through `onKey`.
-import { Application, Assets, Graphics, Sprite } from 'pixi.js'
-import type { GameState, Position } from './types.ts'
+import { Application, Assets, Graphics, Sprite, type Texture } from 'pixi.js'
+import type { Direction, GameState, Position } from './types.ts'
 
 const TILE = 64 // px
-const PLAYER_TEXTURE = 'https://pixijs.com/assets/bunny.png' // sample sprite from the PixiJS docs
+
+// One 16x16 sprite per character per facing direction, in public/sprites/.
+type Character = 'bert' | 'ruth' // bert is the player, ruth the agent
+const DIRECTIONS: Direction[] = ['up', 'down', 'left', 'right']
+const spritePath = (character: Character, facing: Direction) => `/sprites/${character}/${character}_${facing}.png`
+const SPRITE_PATHS = (['bert', 'ruth'] as const).flatMap((c) => DIRECTIONS.map((d) => spritePath(c, d)))
 
 // Keys whose browser default (scrolling the page) would get in the way of playing.
 const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '])
@@ -43,6 +48,7 @@ export function createGame(
   const app = new Application()
   let player: Sprite | null = null
   let agent: Sprite | null = null
+  let textures: Record<string, Texture> = {} // by sprite path
   let latest = initial // newest state, applied once the sprites have loaded
   let initialized = false
   let destroyed = false
@@ -57,6 +63,8 @@ export function createGame(
     if (!player || !agent) return
     place(player, state.player_position)
     place(agent, state.agent_position)
+    player.texture = textures[spritePath('bert', state.player_facing)]
+    agent.texture = textures[spritePath('ruth', state.agent_facing)]
   }
 
   function onKeyDown(event: KeyboardEvent) {
@@ -77,13 +85,14 @@ export function createGame(
     container.appendChild(app.canvas)
     app.stage.addChild(drawGrid(initial.grid))
 
-    const texture = await Assets.load(PLAYER_TEXTURE)
+    textures = await Assets.load<Texture>(SPRITE_PATHS)
     if (destroyed) return
-    player = new Sprite(texture)
-    agent = new Sprite(texture)
-    agent.tint = token('--color-game-agent') // same sample sprite, tinted to tell them apart
+    for (const texture of Object.values(textures)) texture.source.scaleMode = 'nearest' // crisp pixel art
+    player = new Sprite(textures[spritePath('bert', initial.player_facing)])
+    agent = new Sprite(textures[spritePath('ruth', initial.agent_facing)])
     for (const sprite of [agent, player]) {
       sprite.anchor.set(0.5)
+      sprite.width = sprite.height = TILE // scale the 16x16 art up to one tile
       app.stage.addChild(sprite)
     }
     render(latest)

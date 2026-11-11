@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useNavigate } from 'react-router'
 import Select from 'react-select'
 import LevelDialog from '../components/LevelDialog.tsx'
@@ -12,6 +12,17 @@ const SETTING_MAX = 200
 type Props = {
   scenario: Scenario
   onSave: (scenario: Scenario) => void
+}
+
+// Tab in an empty field fills in its suggestion (the placeholder, without the trailing "...").
+// Once the field has text, Tab moves to the next field as usual.
+function fillSuggestionOnTab(fill: (value: string) => void) {
+  return (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const field = event.currentTarget
+    if (event.key !== 'Tab' || event.shiftKey || field.value) return
+    event.preventDefault()
+    fill(field.placeholder.replace(/\.\.\.$/, ''))
+  }
 }
 
 export default function CreateScenario({ scenario, onSave }: Props) {
@@ -66,6 +77,7 @@ export default function CreateScenario({ scenario, onSave }: Props) {
             maxLength={100}
             placeholder="Lucía..."
             onChange={(e) => updatePartner({ name: e.target.value })}
+            onKeyDown={fillSuggestionOnTab((name) => updatePartner({ name }))}
           />
         </label>
 
@@ -77,6 +89,7 @@ export default function CreateScenario({ scenario, onSave }: Props) {
             maxLength={BIO_MAX}
             placeholder="A friendly barista at a busy café in Madrid..."
             onChange={(e) => updatePartner({ bio: e.target.value })}
+            onKeyDown={fillSuggestionOnTab((bio) => updatePartner({ bio }))}
           />
           <span className="field-hint">
             {partner.bio.length}/{BIO_MAX}
@@ -122,6 +135,7 @@ export default function CreateScenario({ scenario, onSave }: Props) {
             maxLength={SETTING_MAX}
             placeholder="A small café on a busy Saturday morning..."
             onChange={(e) => setDraft({ ...draft, setting: e.target.value })}
+            onKeyDown={fillSuggestionOnTab((value) => setDraft({ ...draft, setting: value }))}
           />
           <span className="field-hint">
             {setting.length}/{SETTING_MAX}
@@ -140,6 +154,12 @@ export default function CreateScenario({ scenario, onSave }: Props) {
                   placeholder={index === 0 ? 'Order a drink and a pastry...' : 'Another objective...'}
                   aria-label={`Objective ${index + 1}`}
                   onChange={(e) => setObjectives(objectives.map((o, i) => (i === index ? e.target.value : o)))}
+                  // Only the first objective has a real suggestion; "Another objective..." isn't one.
+                  onKeyDown={
+                    index === 0
+                      ? fillSuggestionOnTab((value) => setObjectives(objectives.map((o, i) => (i === 0 ? value : o))))
+                      : undefined
+                  }
                 />
                 {objectives.length > 1 && (
                   <button

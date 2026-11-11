@@ -17,7 +17,7 @@ export default function Play({ scenario, onFinish }: Props) {
   const socketRef = useRef<WebSocket | null>(null) // so "Finish scenario" can reach the game
   const gameIdRef = useRef<string | null>(null)
   const [error, setError] = useState('')
-  const [inConversation, setInConversation] = useState(false)
+  const [subtext, setSubtext] = useState('') // the game decides what it says
   const [finishing, setFinishing] = useState(false)
 
   // One WebSocket is one game: the server creates it from the scenario we send first, then
@@ -45,7 +45,7 @@ export default function Play({ scenario, onFinish }: Props) {
       } else {
         view ??= createGame(container, message, sendKey)
         view.render(message)
-        setInConversation(message.in_conversation)
+        setSubtext(message.subtext)
         voiceCall?.follow(message.in_conversation)
       }
     }
@@ -78,11 +78,7 @@ export default function Play({ scenario, onFinish }: Props) {
   return (
     <div className="stack">
       <h1>Play</h1>
-      <p className="muted">
-        {inConversation
-          ? `Talking to ${scenario.partner.name}. Press Esc to end the conversation.`
-          : `Use the arrow keys to move. Press Enter next to ${scenario.partner.name} to talk.`}
-      </p>
+      <p className="muted">{subtext}</p>
       {error && <p className="error">{error}</p>}
       <div ref={containerRef} className="game-canvas" />
 

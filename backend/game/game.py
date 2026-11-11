@@ -1,6 +1,7 @@
 """A barebones 2D grid game: the student (player) moves around a grid with the conversation partner (agent)."""
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import Enum
 from typing import NamedTuple
 
 from game.call_summary import CallSummary
@@ -10,11 +11,30 @@ EMPTY = 0  # tile values; walls and items can be added later
 
 ALL_DONE = "All done!"  # the subtext once every objective is done
 
+
+class Direction(Enum):
+    """Which way a character moves or faces."""
+    UP = "up"
+    DOWN = "down"
+    LEFT = "left"
+    RIGHT = "right"
+
+
 # (row change, column change) for each direction
-DIRECTIONS = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
+DIRECTIONS: dict[Direction, tuple[int, int]] = {
+    Direction.UP: (-1, 0),
+    Direction.DOWN: (1, 0),
+    Direction.LEFT: (0, -1),
+    Direction.RIGHT: (0, 1),
+}
 
 # Browser key names (KeyboardEvent.key) that move the player
-KEY_TO_DIRECTION = {"ArrowUp": "up", "ArrowDown": "down", "ArrowLeft": "left", "ArrowRight": "right"}
+KEY_TO_DIRECTION = {
+    "ArrowUp": Direction.UP,
+    "ArrowDown": Direction.DOWN,
+    "ArrowLeft": Direction.LEFT,
+    "ArrowRight": Direction.RIGHT,
+}
 
 
 class Position(NamedTuple):
@@ -46,6 +66,8 @@ class Game:
         self.grid = grid  # grid[row][col], tiles only
         self.player_position = player_position  # the student
         self.agent_position = agent_position  # the conversation partner
+        self.player_facing = Direction.DOWN  # the way the player looks; set by the arrow keys
+        self.agent_facing = Direction.LEFT
         self.in_conversation = False  # while True, nobody moves
         self.objective_index = 0  # the objective being worked on; len(objectives) once all are done
         self.call_summary = CallSummary()  # what was said in this game's calls
@@ -69,6 +91,8 @@ class Game:
             "grid": self.grid,
             "player_position": self.player_position,
             "agent_position": self.agent_position,
+            "player_facing": self.player_facing.value,  # .value: a plain Enum isn't JSON
+            "agent_facing": self.agent_facing.value,
             "in_conversation": self.in_conversation,
             "subtext": self.subtext,
         }
@@ -93,8 +117,11 @@ class Game:
         elif key == "Escape":
             self.end_conversation()
 
-    def move_player(self, direction: str) -> None:
-        dr, dc = DIRECTIONS[direction]  # KeyError for an unknown direction
+    def move_player(self, direction: Direction) -> None:
+        if self.in_conversation:
+            return  # mid-conversation, the player keeps facing the agent
+        self.player_facing = direction  # turns even when the move is blocked
+        dr, dc = DIRECTIONS[direction]
         target = Position(self.player_position.row + dr, self.player_position.col + dc)
         if self._can_move_to(target):
             self.player_position = target  # disallowed moves are ignored

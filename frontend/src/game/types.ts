@@ -3,11 +3,16 @@
 
 export type Position = [row: number, col: number]
 
+export type Direction = 'up' | 'down' | 'left' | 'right' // the backend's Direction values
+
 export type GameState = {
   grid: number[][] // grid[row][col], tile values (0 = empty)
   player_position: Position // the student
   agent_position: Position // the conversation partner
+  player_facing: Direction
+  agent_facing: Direction
   in_conversation: boolean // while true, nobody moves
+  subtext: string // the line shown under "Play"
 }
 
 // Sent once, right after the server creates the game: what the browser needs to place a voice call.
