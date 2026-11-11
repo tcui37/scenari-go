@@ -29,8 +29,8 @@ def score_prompt(scenario: Scenario, transcript: list[TranscriptLine]) -> str:
 Transcript:
 {lines or "(empty: no conversation took place)"}
 
-Judge each objective only from the transcript. If the transcript is empty, mark every
-objective as not met, give overall_score 0, and say no conversation was recorded.
+Judge each objective only from the transcript: met or not met. If the transcript is empty,
+mark every objective as not met and say no conversation was recorded.
 Write feedback in English, addressed to the student, one or two sentences each.
 
-Score from 0 to 100. Return one result per objective, in the same order."""
+Return one result per objective, in the same order."""

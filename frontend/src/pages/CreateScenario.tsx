@@ -6,7 +6,7 @@ import { findLanguage, LANGUAGES, type Language } from '../data/languages.ts'
 import { isComplete } from '../scenario/scenario.ts'
 import type { ConversationPartner, Objective, Scenario } from '../scenario/types.ts'
 
-const BIO_MAX = 100
+const BIO_MAX = 200
 const SETTING_MAX = 200
 
 type Props = {

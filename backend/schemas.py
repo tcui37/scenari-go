@@ -10,7 +10,7 @@ from game.call_summary import TranscriptLine
 
 class ConversationPartnerModel(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    bio: str = Field(max_length=100)
+    bio: str = Field(max_length=200)
     language: Literal["english", "spanish"]  # the app's languages; also supported by Guava voice
     level: Literal["A1", "A2", "B1", "B2", "C1", "C2"]  # CEFR
 
@@ -58,10 +58,14 @@ class ObjectiveScoreModel(BaseModel):
     feedback: str
 
 
-class ScoreResponseModel(BaseModel):
-    overall_score: int = Field(ge=0, le=100, description="Overall score from 0 to 100")
+class GeneratedScoreModel(BaseModel):
+    """What Gemini produces when grading: a verdict per objective. It doesn't give the score."""
     summary: str
-    objectives: list[ObjectiveScoreModel]
+    objectives: list[ObjectiveScoreModel]  # one per objective, same order
+
+
+class ScoreResponseModel(GeneratedScoreModel):
+    overall_score: int = Field(ge=0, le=100)  # the share of objectives met, out of 100
 
 
 class GameSummaryModel(BaseModel):

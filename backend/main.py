@@ -1,5 +1,6 @@
 import os
 import threading
+import traceback
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
@@ -12,7 +13,14 @@ from game.games import games
 from game.scenario import Scenario
 from llm.gemini import gemini_generate_with_schema
 from llm.prompts import checklists_prompt, score_prompt
-from schemas import GameSummaryModel, GeneratedChecklistsModel, ScenarioModel, ScoreResponseModel, TranscriptLineModel
+from schemas import (
+    GameSummaryModel,
+    GeneratedChecklistsModel,
+    GeneratedScoreModel,
+    ScenarioModel,
+    ScoreResponseModel,
+    TranscriptLineModel,
+)
 from sockets.socket import create_socket_updater
 from voice.agent import agent
 
@@ -35,6 +43,9 @@ async def ask_gemini(prompt: str, schema: type[BaseModel]) -> BaseModel:
     try:
         return await gemini_generate_with_schema(prompt, schema)
     except Exception:
+        # DEBUG: the real error the 502 hides (e.g. 429 rate limit, 503 overloaded, bad key, unparseable answer)
+        print(f"[gemini] {schema.__name__} request failed:")
+        traceback.print_exc()
         raise HTTPException(502, "Gemini request failed. Please try again.")
 
 
@@ -46,6 +57,8 @@ async def generate_checklists(scenario: ScenarioModel) -> ScenarioModel:
     result = await ask_gemini(checklists_prompt(Scenario.from_model(scenario)), GeneratedChecklistsModel)
 
     if len(result.checklists) != len(scenario.objectives):
+        # DEBUG: Gemini merged or split objectives
+        print(f"[gemini] got {len(result.checklists)} checklists for {len(scenario.objectives)} objectives: {result.checklists}")
         raise HTTPException(502, "Gemini skipped an objective. Please try again.")
     for objective, checklist in zip(scenario.objectives, result.checklists):  # Gemini answers in objective order
         objective.checklist = checklist
@@ -58,9 +71,13 @@ async def summarize_game(game_id: str) -> GameSummaryModel:
     game = games.get(game_id)
     if game is None:
         raise HTTPException(404, "This game has ended. Play again to get a summary.")
-    transcript = game.call_summary.transcript
-    score = await ask_gemini(score_prompt(game.scenario, transcript), ScoreResponseModel)
-    return GameSummaryModel(evaluation=score, transcript=[TranscriptLineModel.from_line(line) for line in transcript])
+    
+    graded = await ask_gemini(score_prompt(game.scenario, game.call_summary.transcript), GeneratedScoreModel)
+    met = sum(objective.met for objective in graded.objectives)
+    overall_score = round(100 * met / len(game.scenario.objectives))  # objectives met, out of 100
+    
+    score = ScoreResponseModel(overall_score=overall_score, summary=graded.summary, objectives=graded.objectives)
+    return GameSummaryModel(evaluation=score, transcript=[TranscriptLineModel.from_line(line) for line in game.call_summary.transcript])
 
 
 @app.websocket("/ws/game")

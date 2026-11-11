@@ -2,14 +2,14 @@
 
 export type ConversationPartner = {
   name: string
-  bio: string // < 100 characters
+  bio: string // <= 200 characters
   language: string // a value from data/languages.ts
   level: string // e.g. "B1"
 }
 
 export type Scenario = {
   partner: ConversationPartner
-  setting: string // < 200 characters
+  setting: string // <= 200 characters
   objectives: Objective[]
 }
 
