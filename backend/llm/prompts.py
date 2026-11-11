@@ -9,7 +9,7 @@ The student talks to the conversation partner below, played by an AI.
 
 {scenario.get_description()}
 
-For EACH objective, write a checklist of 1-2 prompts that guide the partner through
+For EACH objective, write short checklist of 1-2 prompts that guide the partner through
 that part of the conversation, in order. Each item is either:
 - "instruction": guidance for the partner, in English (e.g. "Ask what size they want.")
 - "say": a line the partner speaks verbatim, in {scenario.partner.language},
