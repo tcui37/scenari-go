@@ -75,7 +75,7 @@ export default function CreateScenario({ scenario, onSave }: Props) {
             className="input"
             value={partner.name}
             maxLength={100}
-            placeholder="Lucía..."
+            placeholder="Lucy..."
             onChange={(e) => updatePartner({ name: e.target.value })}
             onKeyDown={fillSuggestionOnTab((name) => updatePartner({ name }))}
           />
@@ -87,7 +87,7 @@ export default function CreateScenario({ scenario, onSave }: Props) {
             className="input"
             value={partner.bio}
             maxLength={BIO_MAX}
-            placeholder="A friendly barista at a busy café in Madrid..."
+            placeholder="A friendly barista at a busy café in California..."
             onChange={(e) => updatePartner({ bio: e.target.value })}
             onKeyDown={fillSuggestionOnTab((bio) => updatePartner({ bio }))}
           />
